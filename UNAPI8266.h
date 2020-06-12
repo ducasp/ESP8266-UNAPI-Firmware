@@ -41,6 +41,20 @@
 #define ALLOW_OTA_UPDATE
 #define ALLOW_TLS
 
+struct ESPConfig {
+  unsigned char ucConfigFileName[8];
+  unsigned char ucStructVersion;
+  unsigned char ucNagle;
+  unsigned char ucAlwaysOn;
+  unsigned int uiRadioOffTimer;
+};
+
+enum CommandTypes {
+  NO_COMMAND = 0,
+  QUICK_COMMAND = 1,
+  REGULAR_COMMAND = 2
+};
+
 enum RxDataParserStates {
 	RX_PARSER_IDLE = 0,
 	RX_PARSER_WAIT_DATA_SIZE,
@@ -58,6 +72,7 @@ enum ConnectionStates {
 
 enum CustomFunctions {
 	CUSTOM_F_RESET = 'R',
+  CUSTOM_F_RETRY_TX = 'r',
   CUSTOM_F_SCAN = 'S',
   CUSTOM_F_SCAN_R = 's',
   CUSTOM_F_CONNECT_AP = 'A',
@@ -71,6 +86,8 @@ enum CustomFunctions {
   CUSTOM_F_NO_DELAY = 'N',
   CUSTOM_F_DELAY = 'D',
   CUSTOM_F_INITCERTS = 'I',
+  CUSTOM_F_WIFI_ON_TIMER_SET = 'T',
+  CUSTOM_F_TURN_WIFI_OFF = 'O',
   CUSTOM_F_QUERY = '?'
 };
 
