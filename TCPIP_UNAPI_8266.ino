@@ -1,5 +1,6 @@
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
+#include <EEPROM.h>
 #include "UNAPI8266.h"
 #ifdef ALLOW_OTA_UPDATE
 #include <ESP8266httpUpdate.h>
@@ -9,6 +10,9 @@
 #include <time.h>
 #include <FS.h>
 #endif
+#include "Ticker.h"
+
+//#define Zanoto_Cartridge
 
 extern "C" {
 #include "user_interface.h"
@@ -25,7 +29,7 @@ unsigned char uchTLSHost[256];
 bool bHasHostName = false;
 #endif
 
-const char chVer[4] = "0.9";
+const char chVer[4] = "1.0";
 byte btConnections[4] = {CONN_CLOSED,CONN_CLOSED,CONN_CLOSED,CONN_CLOSED};
 //UDP Objects
 WiFiUDP Udp1;
@@ -52,8 +56,19 @@ static byte btIPConnection4[4] = {0,0,0,0};
 IPAddress externalIP,DNSQueryIP;
 bool bIPAutomatic = true;
 bool bDNSAutomatic = true;
-bool bNagleOn = true;
 bool bSerialUpdateInProgress = false;
+unsigned char ucReceivedCommand = NO_COMMAND;
+unsigned char ucLastCmd,ucLastResponse;
+unsigned int uiLastDataSize;
+unsigned char *ucLastData;
+ESPConfig stDeviceConfiguration;
+static byte btState = RX_PARSER_IDLE;
+byte btReadyRetries;
+byte btReceivedCommand;
+bool bWiFiOn = false;
+Ticker tickerRadioOff;
+unsigned long longTimeOut;
+unsigned long longReadyTimeOut;
 
 #ifdef ALLOW_TLS
 // Set time via NTP, as required for x.509 validation
@@ -72,6 +87,11 @@ void setClock() {
 
 void SendResponse (unsigned char ucCmd, unsigned char ucResponse, unsigned int uiDataSize, unsigned char *ucData)
 {
+  ucReceivedCommand = REGULAR_COMMAND;
+  ucLastCmd = ucCmd;
+  ucLastResponse = ucResponse;
+  uiLastDataSize = uiDataSize;
+  ucLastData = ucData;
   Serial.write(ucCmd);
   Serial.write(ucResponse);
   Serial.write((uint8_t)((uiDataSize>>8)&0xff));
@@ -82,23 +102,129 @@ void SendResponse (unsigned char ucCmd, unsigned char ucResponse, unsigned int u
 
 void SendQuickResponse (unsigned char ucCmd, unsigned char ucResponse)
 {
+  ucReceivedCommand = QUICK_COMMAND;
+  ucLastCmd = ucCmd;
+  ucLastResponse = ucResponse;
   Serial.write(ucCmd);
   Serial.write(ucResponse);
 }
 
+void saveFileConfig()
+{
+  EEPROM.put(0,stDeviceConfiguration);
+  EEPROM.commit();
+}
+
+bool validateConfigFile()
+{
+  EEPROM.get(0,stDeviceConfiguration);
+  if ((stDeviceConfiguration.ucConfigFileName[0]=='E')&&(stDeviceConfiguration.ucConfigFileName[1]=='S')\
+  &&(stDeviceConfiguration.ucConfigFileName[2]=='P')&&(stDeviceConfiguration.ucConfigFileName[3]=='U')\
+  &&(stDeviceConfiguration.ucConfigFileName[4]=='N')&&(stDeviceConfiguration.ucConfigFileName[5]=='A')\
+  &&(stDeviceConfiguration.ucConfigFileName[6]=='P')&&(stDeviceConfiguration.ucConfigFileName[7]=='I'))
+    return true;
+      
+  stDeviceConfiguration.ucConfigFileName[0]='E';
+  stDeviceConfiguration.ucConfigFileName[1]='S';
+  stDeviceConfiguration.ucConfigFileName[2]='P';
+  stDeviceConfiguration.ucConfigFileName[3]='U';
+  stDeviceConfiguration.ucConfigFileName[4]='N';
+  stDeviceConfiguration.ucConfigFileName[5]='A';
+  stDeviceConfiguration.ucConfigFileName[6]='P';
+  stDeviceConfiguration.ucConfigFileName[7]='I';
+  stDeviceConfiguration.ucStructVersion = 1;
+  stDeviceConfiguration.ucNagle = 0;
+  stDeviceConfiguration.ucAlwaysOn = 0;
+  stDeviceConfiguration.uiRadioOffTimer = 120;
+  saveFileConfig();
+
+  return false;
+}
+
 void setup() {
   SPIFFS.begin();
+  EEPROM.begin(32);
+#ifdef  Zanoto_Cartridge
+  Serial.begin(115200);
+#else  
   Serial.begin(859372);
+#endif  
   Serial.setRxBufferSize(2148);
   Serial.setTimeout(1);
+#ifdef  Zanoto_Cartridge
+  Serial.print("TCP-IP UNAPI ESP8266 Luca Zanoto Cartridge ONLY v");
+#else  
   Serial.print("TCP-IP UNAPI ESP8266 v");
+#endif  
   Serial.println(chVer);
-  Serial.println("(c) 2019 Oduvaldo Pavan Junior - ducasp@gmail.com");
-  //Serial.println(ESP.getFullVersion().c_str());
-  WiFi.mode(WIFI_STA);
+  Serial.println("(c) 2020 Oduvaldo Pavan Junior - ducasp@gmail.com");
+  validateConfigFile();
+  longReadyTimeOut = 0;
+  btReadyRetries = 3;
+  btReceivedCommand = false;
+  //Serial.println(ESP.getFullVersion().c_str());  
   WiFi.setSleepMode(WIFI_NONE_SLEEP,0);
   WiFi.begin();
-  Serial.println("Ready");
+  if (!stDeviceConfiguration.ucAlwaysOn)
+    WiFi.mode(WIFI_OFF);
+  else
+    WiFi.mode(WIFI_STA);
+  Serial.println("Ready");  
+}
+
+byte checkOpenConnections ()
+{
+  byte btOpenConnections = 0;
+
+  for (unsigned int i = 0; i < 4; i++)
+    if (btConnections[i])
+      btOpenConnections++;
+    
+  return btOpenConnections;
+}
+
+void DisableRadio () {
+  if ((!checkOpenConnections())&&(btState == RX_PARSER_IDLE))
+  {
+    if (bWiFiOn)
+    {
+      bWiFiOn = false;
+      RadioUpdateStatus();
+    }
+  }
+  else
+    ScheduleTimeoutCheck();
+}
+
+void ScheduleTimeoutCheck() {
+    tickerRadioOff.once(stDeviceConfiguration.uiRadioOffTimer,DisableRadio);
+}
+
+void  CancelTimeoutCheck() {
+  tickerRadioOff.detach();
+}
+
+void RadioUpdateStatus () {
+  if (bWiFiOn){
+    WiFi.mode(WIFI_STA);
+    WiFi.begin();
+    ScheduleTimeoutCheck();
+  }
+  else
+    WiFi.mode(WIFI_OFF);
+}
+
+void WaitConnectionIfNeeded()
+{
+  if (!stDeviceConfiguration.ucAlwaysOn)
+  {
+    longTimeOut = millis () + 10000; // will wait up to 10s
+    do
+    {
+      yield();
+    }
+    while((WiFi.status() != WL_CONNECTED)&&(longTimeOut>millis()));
+  }
 }
 
 #ifdef ALLOW_TLS
@@ -115,17 +241,6 @@ bool InitCertificates() {
   return true;
 }
 #endif
-
-byte checkOpenConnections ()
-{
-  byte btOpenConnections = 0;
-
-  for (unsigned int i = 0; i < 4; i++)
-    if (btConnections[i])
-      btOpenConnections++;
-    
-  return btOpenConnections;
-}
 
 bool IsActivePortInUse (unsigned int uiPort)
 {
@@ -154,7 +269,7 @@ WiFiServer * IsPassivePortInUse (unsigned int uiPort)
   }
 
   newServer = new WiFiServer(uiPort);
-  newServer->setNoDelay(!bNagleOn);
+  newServer->setNoDelay(!stDeviceConfiguration.ucNagle);
   newServer->begin();
   return newServer;  
 }
@@ -442,8 +557,7 @@ void TcpReceive (byte btCMDConnNumber, uint16_t ui16RcvSize, byte * btCommandDat
 void received_data_parser ()
 {  
   static bool bInit = false;
-  static unsigned long RXTimeOut;
-  static byte btState = RX_PARSER_IDLE;
+  static unsigned long RXTimeOut;  
   static byte btCommand;
   static byte btCommandData[MAX_CMD_DATA_LEN];
   static byte btIPRet[4];
@@ -498,6 +612,13 @@ void received_data_parser ()
       //Ok, so first let's check if it is a valid command
       if (Serial.readBytes(&btCommand,1) == 1)
       {
+        btReceivedCommand = true;
+        if ((!stDeviceConfiguration.ucAlwaysOn) && (btCommand!=CUSTOM_F_RESET) && (!bWiFiOn) && (btCommand!=CUSTOM_F_QUERY))
+        {
+          bWiFiOn = true;
+          RadioUpdateStatus();
+        }
+
         switch(btCommand)
         {
 #ifdef ALLOW_TLS          
@@ -513,7 +634,17 @@ void received_data_parser ()
               SendQuickResponse(btCommand,UNAPI_ERR_OK);              
             }
           break;
-#endif          
+#endif        
+          case CUSTOM_F_RETRY_TX:
+            if(ucReceivedCommand == QUICK_COMMAND)
+            {
+              SendQuickResponse (ucLastCmd, ucLastResponse);
+            }
+            else if(ucReceivedCommand == REGULAR_COMMAND)
+            {
+              SendResponse (ucLastCmd, ucLastResponse, uiLastDataSize, ucLastData);
+            }
+          break;
           case CUSTOM_F_END_RS232_UPDATE:
             if (!bSerialUpdateInProgress)            
             {
@@ -546,7 +677,7 @@ void received_data_parser ()
           case CUSTOM_F_GET_VER:
             Serial.write(CUSTOM_F_GET_VER);
             Serial.write(chVer[0]-'0');
-            Serial.write(chVer[2]-'0');
+            Serial.write(chVer[2]-'0');      
             break;
           case CUSTOM_F_SCAN:
             WiFi.scanNetworks(true,false);
@@ -574,12 +705,17 @@ void received_data_parser ()
               Serial.write(UNAPI_ERR_NO_DATA); //no data yet
             }
             break;
+          case CUSTOM_F_TURN_WIFI_OFF:
+            DisableRadio();
+            SendQuickResponse(btCommand,UNAPI_ERR_OK);
           case CUSTOM_F_NO_DELAY:
-            bNagleOn = false;            
+            stDeviceConfiguration.ucNagle = 0;
+            saveFileConfig();
             SendQuickResponse(btCommand,UNAPI_ERR_OK);
           break;
           case CUSTOM_F_DELAY:
-            bNagleOn = true;
+            stDeviceConfiguration.ucNagle = 1;
+            saveFileConfig();
             SendQuickResponse(btCommand,UNAPI_ERR_OK);
           break;
 
@@ -608,6 +744,7 @@ void received_data_parser ()
           case CUSTOM_F_START_RS232_UPDATE:
           case CUSTOM_F_START_RS232_CERT_UPDATE:
           case CUSTOM_F_BLOCK_RS232_UPDATE:
+          case CUSTOM_F_WIFI_ON_TIMER_SET:
             btState = RX_PARSER_WAIT_DATA_SIZE;
             btCmdInternalStep = 0;
             break;
@@ -701,6 +838,27 @@ proccesscmd:
               SendQuickResponse(btCommand,UNAPI_ERR_NO_DATA);
             else
               SendQuickResponse(btCommand,UNAPI_ERR_OK);
+          }
+        break;
+        case CUSTOM_F_WIFI_ON_TIMER_SET:
+          if (uiCmdDataLen != 2)
+            SendQuickResponse(btCommand,UNAPI_ERR_INV_PARAM);
+          else
+          {
+            stDeviceConfiguration.uiRadioOffTimer = (unsigned int)(btCommandData[0]*256) + btCommandData[1];
+            if (stDeviceConfiguration.uiRadioOffTimer > 600) //10 minutes top
+              stDeviceConfiguration.uiRadioOffTimer = 600;
+            if ((stDeviceConfiguration.uiRadioOffTimer>0)&&(stDeviceConfiguration.uiRadioOffTimer<30))
+              stDeviceConfiguration.uiRadioOffTimer = 30; //30 seconds at least
+            if (stDeviceConfiguration.uiRadioOffTimer)
+              stDeviceConfiguration.ucAlwaysOn = 0;
+            else
+            {
+              stDeviceConfiguration.ucAlwaysOn = 1;
+              CancelTimeoutCheck();
+            }
+            saveFileConfig();
+            SendQuickResponse(btCommand,UNAPI_ERR_OK);
           }
         break;
         case TCPIP_CONFIG_AUTOIP:          
@@ -1064,6 +1222,7 @@ proccesscmd:
           else
           {
             btCommandData[uiCmdDataLen]=0; //zero terminate the DNS strings
+            WaitConnectionIfNeeded();
             if(WiFi.hostByName((const char*)btCommandData,DNSQueryIP))
               SendResponse(btCommand,UNAPI_ERR_OK,4,&DNSQueryIP[0]);
             else
@@ -1085,13 +1244,17 @@ proccesscmd:
             btCMDTransient = 0; //set, so resident
           else
             btCMDTransient = 1; //clear, so transient
+
+          WaitConnectionIfNeeded();
+            
           if ((uiCmdDataLen < 11) || (uiCMDLocalPort==0) || \
               (btCMDPassive & 0xf0) || ( (btCMDPassive & 4) && (uiCmdDataLen <12) ) || ( (btCMDPassive & 1) && (btCMDPassive & 4) ) || ( ((btCMDPassive & 1) == 0) && ((btCMDPassive & 4) ==0) && (btCMDPassive&8) ) || 
               ( ((btCMDPassive & 1) == 0) && ( (externalIP[0] | externalIP[1] | externalIP[2] | externalIP[3]) == 0) ) || //Active connection remote IP MUST be other than 0.0.0.0
               ( ((btCMDPassive & 1) == 1) && ( (externalIP[0] | externalIP[1] | externalIP[2] | externalIP[3]) != 0) ) )//Passive connection remote IP MUST be 0.0.0.0
             SendResponse(btCommand,UNAPI_ERR_INV_PARAM,0,0);
-          else if (WiFi.status() != WL_CONNECTED)
+          else if (WiFi.status() != WL_CONNECTED) {
             SendResponse(btCommand,UNAPI_ERR_NO_NETWORK,0,0);
+          }
           else
           {
             if (btCMDPassive & 1) 
@@ -1145,7 +1308,7 @@ proccesscmd:
                     bTLSInUse = btCMDConnNumber;                  
                     ClientList[uiForHelper] = new BearSSL::WiFiClientSecure();
                     TClient1 = (BearSSL::WiFiClientSecure*)ClientList[uiForHelper];
-                    ClientList[uiForHelper]->setNoDelay(!bNagleOn);
+                    ClientList[uiForHelper]->setNoDelay(!stDeviceConfiguration.ucNagle);
                     
                     if (btCMDPassive&8) //validate certificates?
                     {
@@ -1232,7 +1395,7 @@ proccesscmd:
                         break;
                     btCMDConnNumber = uiForHelper+1;
                     ClientList[uiForHelper] = new WiFiClient();
-                    ClientList[uiForHelper]->setNoDelay(!bNagleOn);
+                    ClientList[uiForHelper]->setNoDelay(!stDeviceConfiguration.ucNagle);
                     
                     btCMDBeginRet = ClientList[uiForHelper]->connect(externalIP,uiCMDRemotePort,uiCMDLocalPort);
                     if (btCMDBeginRet)
@@ -1652,7 +1815,8 @@ proccesscmd:
       btState = RX_PARSER_IDLE;
       break;
   }
-  
+  if (!stDeviceConfiguration.ucAlwaysOn)
+    ScheduleTimeoutCheck();
 }
 
 void loop() {  
@@ -1660,6 +1824,23 @@ void loop() {
 
   if (Serial.available())
     received_data_parser();
+
+  if ((!btReceivedCommand)&&(btReadyRetries))
+  {
+    if(longReadyTimeOut)
+    {
+      if (longReadyTimeOut<millis())
+      {
+        Serial.println("Ready");
+        longReadyTimeOut = 0;
+        --btReadyRetries;
+      }
+    }
+    else
+    {
+      longReadyTimeOut = millis() + 5000;      
+    }
+  }
 
   for (uiI=1;uiI<5;uiI++)
   {
