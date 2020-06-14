@@ -29,7 +29,7 @@ unsigned char uchTLSHost[256];
 bool bHasHostName = false;
 #endif
 
-const char chVer[4] = "1.0";
+const char chVer[4] = "1.1";
 byte btConnections[4] = {CONN_CLOSED,CONN_CLOSED,CONN_CLOSED,CONN_CLOSED};
 //UDP Objects
 WiFiUDP Udp1;
@@ -168,7 +168,10 @@ void setup() {
   if (!stDeviceConfiguration.ucAlwaysOn)
     WiFi.mode(WIFI_OFF);
   else
+  {
     WiFi.mode(WIFI_STA);
+    bWiFiOn = true;
+  }
   Serial.println("Ready");  
 }
 
@@ -192,7 +195,7 @@ void DisableRadio () {
       RadioUpdateStatus();
     }
   }
-  else
+  else if (!stDeviceConfiguration.ucAlwaysOn)
     ScheduleTimeoutCheck();
 }
 
@@ -208,7 +211,8 @@ void RadioUpdateStatus () {
   if (bWiFiOn){
     WiFi.mode(WIFI_STA);
     WiFi.begin();
-    ScheduleTimeoutCheck();
+    if (!stDeviceConfiguration.ucAlwaysOn)
+      ScheduleTimeoutCheck();
   }
   else
     WiFi.mode(WIFI_OFF);
@@ -613,7 +617,7 @@ void received_data_parser ()
       if (Serial.readBytes(&btCommand,1) == 1)
       {
         btReceivedCommand = true;
-        if ((!stDeviceConfiguration.ucAlwaysOn) && (btCommand!=CUSTOM_F_RESET) && (!bWiFiOn) && (btCommand!=CUSTOM_F_QUERY))
+        if ((btCommand!=CUSTOM_F_RESET) && (!bWiFiOn) && (btCommand!=CUSTOM_F_QUERY))
         {
           bWiFiOn = true;
           RadioUpdateStatus();
