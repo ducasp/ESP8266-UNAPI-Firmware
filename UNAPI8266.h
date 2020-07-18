@@ -2,10 +2,10 @@
 --
 -- UNAPI8266.h
 --   ESP8266 UNAPI Implementation.
---   Revision 1.00
+--   Revision 1.20
 --
 -- Requires Arduino IDE and ESP8266 libraries
--- Copyright (c) 2019 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
+-- Copyright (c) 2019 - 2020 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
 -- All rights reserved.
 --
 -- Redistribution and use of this source code or any derivative works, are
@@ -47,6 +47,8 @@ struct ESPConfig {
   unsigned char ucNagle;
   unsigned char ucAlwaysOn;
   unsigned int uiRadioOffTimer;
+  unsigned char ucAutoClock;
+  int iGMT;
 };
 
 enum CommandTypes {
@@ -88,6 +90,13 @@ enum CustomFunctions {
   CUSTOM_F_INITCERTS = 'I',
   CUSTOM_F_WIFI_ON_TIMER_SET = 'T',
   CUSTOM_F_TURN_WIFI_OFF = 'O',
+  CUSTOM_F_QUERY_SETTINGS = 'Q',
+  CUSTOM_F_QUERY_AUTOCLOCK = 'c',
+  CUSTOM_F_SET_AUTOCLOCK = 'C',
+  CUSTOM_F_GET_DATETIME = 'G',
+  CUSTOM_F_WARMBOOT = 'W',
+  CUSTOM_F_HOLDCONNECTION = 'H',
+  CUSTOM_F_RELEASECONNECTION = 'h',
   CUSTOM_F_QUERY = '?'
 };
 
@@ -98,6 +107,7 @@ enum TcpipUnapiFunctions {
 	TCPIP_SEND_ECHO = 4,
 	TCPIP_RCV_ECHO = 5,
 	TCPIP_DNS_Q = 6,
+  TCPIP_DNS_Q_NEW = 206,
 	TCPIP_DNS_S = 7,
 	TCPIP_UDP_OPEN = 8,
     TCPIP_UDP_CLOSE = 9,

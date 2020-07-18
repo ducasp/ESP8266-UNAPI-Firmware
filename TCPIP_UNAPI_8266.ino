@@ -1,3 +1,39 @@
+/*
+--
+-- UNAPI8266.ino
+--   ESP8266 UNAPI Implementation.
+--   Revision 1.20
+--
+-- Requires Arduino IDE and ESP8266 libraries
+-- Copyright (c) 2019 - 2020 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
+-- All rights reserved.
+--
+-- Redistribution and use of this source code or any derivative works, are
+-- permitted provided that the following conditions are met:
+--
+-- 1. Redistributions of source code must retain the above copyright notice,
+--    this list of conditions and the following disclaimer.
+-- 2. Redistributions in binary form must reproduce the above copyright
+--    notice, this list of conditions and the following disclaimer in the
+--    documentation and/or other materials provided with the distribution.
+-- 3. Redistributions may not be sold, nor may they be used in a commercial
+--    product or activity without specific prior written permission.
+-- 4. Source code of derivative works MUST be published to the public.
+--
+-- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+-- "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+-- TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+-- PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+-- CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+-- EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+-- PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+-- OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+-- WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+-- OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+-- ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+--
+*/
+
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #include <EEPROM.h>
@@ -29,7 +65,7 @@ unsigned char uchTLSHost[256];
 bool bHasHostName = false;
 #endif
 
-const char chVer[4] = "1.1";
+const char chVer[4] = "1.2";
 byte btConnections[4] = {CONN_CLOSED,CONN_CLOSED,CONN_CLOSED,CONN_CLOSED};
 //UDP Objects
 WiFiUDP Udp1;
@@ -69,21 +105,35 @@ bool bWiFiOn = false;
 Ticker tickerRadioOff;
 unsigned long longTimeOut;
 unsigned long longReadyTimeOut;
+struct tm timeinfo;
+bool bSNTPOK = false;
+bool bHoldConnection = false;
+time_t now;
+bool bSkipStateCheck = false;
 
-#ifdef ALLOW_TLS
 // Set time via NTP, as required for x.509 validation
-void setClock() {
-  configTime(3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+void setClock(bool bFastReturn = false) {
+  unsigned int uiRetryCount = 20;
+  if (bFastReturn)
+    uiRetryCount = 8;
+  configTime(0,0, "pool.ntp.org");
  
-  time_t now = time(nullptr);
+  now = time(nullptr);
   while (now < 8 * 3600 * 2) {
     delay(500);
     now = time(nullptr);
+    uiRetryCount--;
+    if (uiRetryCount==0)
+      break;
   }
-  struct tm timeinfo;
+
+  if (now > 8 * 3600 * 2)
+    bSNTPOK = true;
+  else
+    bSNTPOK = false;
+  
   gmtime_r(&now, &timeinfo);
 }
-#endif
 
 void SendResponse (unsigned char ucCmd, unsigned char ucResponse, unsigned int uiDataSize, unsigned char *ucData)
 {
@@ -117,28 +167,47 @@ void saveFileConfig()
 
 bool validateConfigFile()
 {
+  bool bReturn = false;
   EEPROM.get(0,stDeviceConfiguration);
   if ((stDeviceConfiguration.ucConfigFileName[0]=='E')&&(stDeviceConfiguration.ucConfigFileName[1]=='S')\
   &&(stDeviceConfiguration.ucConfigFileName[2]=='P')&&(stDeviceConfiguration.ucConfigFileName[3]=='U')\
   &&(stDeviceConfiguration.ucConfigFileName[4]=='N')&&(stDeviceConfiguration.ucConfigFileName[5]=='A')\
   &&(stDeviceConfiguration.ucConfigFileName[6]=='P')&&(stDeviceConfiguration.ucConfigFileName[7]=='I'))
-    return true;
-      
-  stDeviceConfiguration.ucConfigFileName[0]='E';
-  stDeviceConfiguration.ucConfigFileName[1]='S';
-  stDeviceConfiguration.ucConfigFileName[2]='P';
-  stDeviceConfiguration.ucConfigFileName[3]='U';
-  stDeviceConfiguration.ucConfigFileName[4]='N';
-  stDeviceConfiguration.ucConfigFileName[5]='A';
-  stDeviceConfiguration.ucConfigFileName[6]='P';
-  stDeviceConfiguration.ucConfigFileName[7]='I';
-  stDeviceConfiguration.ucStructVersion = 1;
-  stDeviceConfiguration.ucNagle = 0;
-  stDeviceConfiguration.ucAlwaysOn = 0;
-  stDeviceConfiguration.uiRadioOffTimer = 120;
-  saveFileConfig();
+    bReturn = true;
 
-  return false;
+  if ((!bReturn)||(stDeviceConfiguration.ucStructVersion<2))
+  {
+    if (!bReturn)
+    {
+      stDeviceConfiguration.ucConfigFileName[0]='E';
+      stDeviceConfiguration.ucConfigFileName[1]='S';
+      stDeviceConfiguration.ucConfigFileName[2]='P';
+      stDeviceConfiguration.ucConfigFileName[3]='U';
+      stDeviceConfiguration.ucConfigFileName[4]='N';
+      stDeviceConfiguration.ucConfigFileName[5]='A';
+      stDeviceConfiguration.ucConfigFileName[6]='P';
+      stDeviceConfiguration.ucConfigFileName[7]='I';
+      stDeviceConfiguration.ucStructVersion = 2;
+      stDeviceConfiguration.ucNagle = 0;
+      stDeviceConfiguration.ucAlwaysOn = 0;
+      stDeviceConfiguration.uiRadioOffTimer = 120;
+      stDeviceConfiguration.ucAutoClock = 0;
+      stDeviceConfiguration.iGMT = -3;
+    }
+    else // just need to update structure
+    {
+      stDeviceConfiguration.ucStructVersion = 2;
+      stDeviceConfiguration.ucAutoClock = 0;
+      stDeviceConfiguration.iGMT = -3;
+    }
+    saveFileConfig();
+  }
+
+  return bReturn;
+}
+
+void ScheduleTimeoutCheck() {
+    tickerRadioOff.once(stDeviceConfiguration.uiRadioOffTimer,DisableRadio);
 }
 
 void setup() {
@@ -164,14 +233,20 @@ void setup() {
   btReceivedCommand = false;
   //Serial.println(ESP.getFullVersion().c_str());  
   WiFi.setSleepMode(WIFI_NONE_SLEEP,0);
-  WiFi.begin();
-  if (!stDeviceConfiguration.ucAlwaysOn)
-    WiFi.mode(WIFI_OFF);
-  else
+  WiFi.begin();  
+  if (stDeviceConfiguration.ucAutoClock!=3)
   {
     WiFi.mode(WIFI_STA);
     bWiFiOn = true;
+    if (!stDeviceConfiguration.ucAlwaysOn)
+      ScheduleTimeoutCheck();
   }
+  else
+  {
+    WiFi.mode(WIFI_OFF);
+    bWiFiOn = false;
+  }  
+  configTime(0,0, "pool.ntp.org");
   Serial.println("Ready");  
 }
 
@@ -187,20 +262,17 @@ byte checkOpenConnections ()
 }
 
 void DisableRadio () {
-  if ((!checkOpenConnections())&&(btState == RX_PARSER_IDLE))
-  {
+  if (((!checkOpenConnections())&&(btState == RX_PARSER_IDLE)&&(!bSkipStateCheck)&&(!bHoldConnection))||\
+      ((!checkOpenConnections())&&(bSkipStateCheck)&&(!bHoldConnection)))
+  {    
     if (bWiFiOn)
     {
       bWiFiOn = false;
       RadioUpdateStatus();
     }
   }
-  else if (!stDeviceConfiguration.ucAlwaysOn)
+  else if ((!stDeviceConfiguration.ucAlwaysOn)&&(stDeviceConfiguration.ucAutoClock != 3))
     ScheduleTimeoutCheck();
-}
-
-void ScheduleTimeoutCheck() {
-    tickerRadioOff.once(stDeviceConfiguration.uiRadioOffTimer,DisableRadio);
 }
 
 void  CancelTimeoutCheck() {
@@ -218,11 +290,14 @@ void RadioUpdateStatus () {
     WiFi.mode(WIFI_OFF);
 }
 
-void WaitConnectionIfNeeded()
+void WaitConnectionIfNeeded(bool bFastReturn = false)
 {
-  if (!stDeviceConfiguration.ucAlwaysOn)
+  if (WiFi.status() != WL_CONNECTED)
   {
-    longTimeOut = millis () + 10000; // will wait up to 10s
+    if (!bFastReturn)
+      longTimeOut = millis () + 10000; // will wait up to 10s
+    else
+      longTimeOut = millis () + 6500; // will wait up to 6.5s
     do
     {
       yield();
@@ -558,6 +633,21 @@ void TcpReceive (byte btCMDConnNumber, uint16_t ui16RcvSize, byte * btCommandDat
   }      
 }
 
+void WarmBoot()
+{
+  byte bti;
+  for (bti=0;bti<4;++bti)
+  {
+    CloseTcpConnection(bti);
+    CloseUdpConnection(bti);
+  }
+  if ((!bWiFiOn)&&(stDeviceConfiguration.ucAutoClock!=3))
+  {
+    bWiFiOn = true;
+    RadioUpdateStatus();
+  }
+}
+
 void received_data_parser ()
 {  
   static bool bInit = false;
@@ -597,7 +687,7 @@ void received_data_parser ()
   if (!bInit)
   {
     bInit = true;
-    RXTimeOut = millis() + 2000;    
+    RXTimeOut = millis() + 250;    
   }
   else
   {
@@ -607,7 +697,7 @@ void received_data_parser ()
       btState = RX_PARSER_IDLE;            
     }
     
-    RXTimeOut = millis() + 2000;
+    RXTimeOut = millis() + 250;
   }
 
   switch (btState)
@@ -617,7 +707,7 @@ void received_data_parser ()
       if (Serial.readBytes(&btCommand,1) == 1)
       {
         btReceivedCommand = true;
-        if ((btCommand!=CUSTOM_F_RESET) && (!bWiFiOn) && (btCommand!=CUSTOM_F_QUERY))
+        if ((btCommand!=CUSTOM_F_RELEASECONNECTION) && (btCommand!=CUSTOM_F_RESET) && (!bWiFiOn) && (btCommand!=CUSTOM_F_QUERY) && (stDeviceConfiguration.ucAutoClock!=3))
         {
           bWiFiOn = true;
           RadioUpdateStatus();
@@ -649,6 +739,10 @@ void received_data_parser ()
               SendResponse (ucLastCmd, ucLastResponse, uiLastDataSize, ucLastData);
             }
           break;
+          case  CUSTOM_F_WARMBOOT:
+            WarmBoot();
+            Serial.println("Ready");  
+          break;
           case CUSTOM_F_END_RS232_UPDATE:
             if (!bSerialUpdateInProgress)            
             {
@@ -678,6 +772,90 @@ void received_data_parser ()
           case CUSTOM_F_QUERY:
             Serial.print("OK");
             break;
+          case CUSTOM_F_GET_DATETIME:
+            {
+              unsigned char uchDateTime[7];
+              time_t currTime;
+              struct tm *currTimeInfo;
+
+              if (!bSNTPOK)
+              {
+                WaitConnectionIfNeeded(true);
+                if (WiFi.status() != WL_CONNECTED)
+                  SendQuickResponse (CUSTOM_F_GET_DATETIME, UNAPI_ERR_NO_NETWORK);
+              }
+              
+              if ((bSNTPOK)||(WiFi.status() == WL_CONNECTED))
+              {
+                if (!bSNTPOK)
+                  setClock(true);
+                if (bSNTPOK)
+                {
+                  time(&currTime);
+                  currTime = currTime + (stDeviceConfiguration.iGMT * 3600);
+                  currTimeInfo = localtime(&currTime);
+                  uchDateTime[0] = currTimeInfo->tm_sec & 0xff;
+                  uchDateTime[1] = currTimeInfo->tm_min & 0xff;
+                  uchDateTime[2] = currTimeInfo->tm_hour & 0xff;
+                  uchDateTime[3] = currTimeInfo->tm_mday & 0xff;
+                  uchDateTime[4] = (currTimeInfo->tm_mon+1) & 0xff;
+                  uchDateTime[5] = (currTimeInfo->tm_year + 1900) & 0xff;
+                  uchDateTime[6] = ((currTimeInfo->tm_year + 1900)>>8) & 0xff;
+                  SendResponse (CUSTOM_F_GET_DATETIME, UNAPI_ERR_OK, 7, uchDateTime);
+                }
+                else
+                  SendQuickResponse (CUSTOM_F_GET_DATETIME, UNAPI_ERR_NO_NETWORK);
+              }
+            }
+            break;
+          case CUSTOM_F_HOLDCONNECTION:
+            {
+              bHoldConnection = true;
+              if (!bWiFiOn)
+              {
+                bWiFiOn= true;
+                RadioUpdateStatus();
+              }
+              SendQuickResponse(btCommand,UNAPI_ERR_OK);
+            }
+            break;
+          case CUSTOM_F_RELEASECONNECTION:
+            {
+              bHoldConnection = false;
+              if (stDeviceConfiguration.ucAutoClock==3)
+              {                
+                bWiFiOn = false;
+                RadioUpdateStatus();
+              }
+              SendQuickResponse(btCommand,UNAPI_ERR_OK);
+            }
+            break;
+          case CUSTOM_F_QUERY_AUTOCLOCK:
+            {
+              unsigned char uchAutoClock[2];
+              uchAutoClock[0] = stDeviceConfiguration.ucAutoClock;
+              if (stDeviceConfiguration.iGMT>=0)
+                uchAutoClock[1] = stDeviceConfiguration.iGMT&0xff;
+              else
+                uchAutoClock[1] = ((stDeviceConfiguration.iGMT*-1)&0xff)|0x80;
+              SendResponse (CUSTOM_F_QUERY_AUTOCLOCK, UNAPI_ERR_OK, 2, uchAutoClock);
+            }
+            break;
+          case CUSTOM_F_QUERY_SETTINGS:
+            {
+              unsigned char uchSettingsString[30];
+              unsigned char uchTmp[10];
+
+              sprintf((char*)uchTmp,"%u",stDeviceConfiguration.uiRadioOffTimer);
+              
+              if (stDeviceConfiguration.ucNagle)
+                sprintf((char*)uchSettingsString,"ON:%s",(char*)uchTmp);
+              else
+                sprintf((char*)uchSettingsString,"OFF:%s",(char*)uchTmp);             
+              
+              SendResponse (CUSTOM_F_QUERY_SETTINGS, UNAPI_ERR_OK, strlen((char*)uchSettingsString), uchSettingsString);
+            }
+            break;
           case CUSTOM_F_GET_VER:
             Serial.write(CUSTOM_F_GET_VER);
             Serial.write(chVer[0]-'0');
@@ -704,14 +882,19 @@ void received_data_parser ()
                 }
               }
             }
-            else
+            else if (iAPCount == WIFI_SCAN_RUNNING)
             {
               Serial.write(UNAPI_ERR_NO_DATA); //no data yet
             }
+            else
+              Serial.write(UNAPI_ERR_NO_NETWORK); //no AP found found
             break;
           case CUSTOM_F_TURN_WIFI_OFF:
+            bSkipStateCheck = true;
             DisableRadio();
+            bSkipStateCheck = false;
             SendQuickResponse(btCommand,UNAPI_ERR_OK);
+          break;
           case CUSTOM_F_NO_DELAY:
             stDeviceConfiguration.ucNagle = 0;
             saveFileConfig();
@@ -727,6 +910,7 @@ void received_data_parser ()
           case TCPIP_GET_IPINFO:
           case TCPIP_NET_STATE:
           case TCPIP_DNS_Q:
+          case TCPIP_DNS_Q_NEW:
           case TCPIP_UDP_OPEN:
           case TCPIP_UDP_CLOSE:
           case TCPIP_UDP_STATE:
@@ -749,6 +933,7 @@ void received_data_parser ()
           case CUSTOM_F_START_RS232_CERT_UPDATE:
           case CUSTOM_F_BLOCK_RS232_UPDATE:
           case CUSTOM_F_WIFI_ON_TIMER_SET:
+          case CUSTOM_F_SET_AUTOCLOCK:
             btState = RX_PARSER_WAIT_DATA_SIZE;
             btCmdInternalStep = 0;
             break;
@@ -808,7 +993,7 @@ proccesscmd:
             ulSerialUpdateSize = btCommandData[0] + (btCommandData[1]*0x100) + (btCommandData[2]*0x10000) + (btCommandData[3]*0x1000000) + (btCommandData[4]*0x100000000) + (btCommandData[5]*0x10000000000)+ (btCommandData[6]*0x1000000000000)+ (btCommandData[7]*0x100000000000000);
             if (btCommand == CUSTOM_F_START_RS232_CERT_UPDATE)
             {
-                if(!Update.begin(ulSerialUpdateSize, U_SPIFFS, -1, HIGH))
+                if(!Update.begin(ulSerialUpdateSize, U_FS, -1, HIGH))
                   SendQuickResponse(btCommand,UNAPI_ERR_NO_DATA);
                 else
                 {
@@ -842,6 +1027,33 @@ proccesscmd:
               SendQuickResponse(btCommand,UNAPI_ERR_NO_DATA);
             else
               SendQuickResponse(btCommand,UNAPI_ERR_OK);
+          }
+        break;
+        case CUSTOM_F_SET_AUTOCLOCK:
+          if ( (uiCmdDataLen != 2) || (btCommandData[0]>3) ||\
+               ((btCommandData[1]>12)&&((btCommandData[1]<129)||(btCommandData[1]>140))) )
+            SendQuickResponse(btCommand,UNAPI_ERR_INV_PARAM);
+          else
+          {
+            // Enabling a disabled adapter?
+            if ((stDeviceConfiguration.ucAutoClock == 3)&&(btCommandData[0]!=3))
+            {
+              bWiFiOn = true;
+              RadioUpdateStatus();
+            }
+            stDeviceConfiguration.ucAutoClock = btCommandData[0];
+            if (btCommandData[1] > 12) //negative?
+              stDeviceConfiguration.iGMT = (btCommandData[1]&0x0f)*-1;
+            else
+              stDeviceConfiguration.iGMT = btCommandData[1];
+            saveFileConfig();
+            if (stDeviceConfiguration.ucAutoClock == 3)
+            {
+              bSkipStateCheck = true;
+              DisableRadio();
+              bSkipStateCheck = false;
+            }
+            SendQuickResponse(btCommand,UNAPI_ERR_OK);
           }
         break;
         case CUSTOM_F_WIFI_ON_TIMER_SET:
@@ -983,7 +1195,10 @@ proccesscmd:
                 stOTAFile = (const char*)ucOTAFile;
                 stVersion = "";
                 if (btCommand == CUSTOM_F_UPDATE_FW)
-                  OTAret = ESPhttpUpdate.update(OTAclient,(const String)stOTAServer,uiOTAPort,(const String)stOTAFile, (const String)stVersion, true);                               
+                {
+                  ESPhttpUpdate.rebootOnUpdate(true);
+                  OTAret = ESPhttpUpdate.update(OTAclient,(const String)stOTAServer,uiOTAPort,(const String)stOTAFile, (const String)stVersion);
+                }
                 else
                   OTAret = ESPhttpUpdate.updateSpiffs(OTAclient,(const String)stOTAServer,uiOTAPort,(const String)stOTAFile);
                 if (OTAret==HTTP_UPDATE_OK)
@@ -998,9 +1213,12 @@ proccesscmd:
           }
           break;
 #endif          
-        case CUSTOM_F_CONNECT_AP:          
+        case CUSTOM_F_CONNECT_AP:
+        {
+          bool bSentRsp = false;
           bOkParam = false;
           bPWD = false;
+          
           
           if (uiCmdDataLen <3)
             SendQuickResponse(btCommand,UNAPI_ERR_INV_PARAM);
@@ -1043,13 +1261,35 @@ proccesscmd:
               else
               {
                 WiFi.begin((const char*)ucSSID);
+                
               }
-              yield();
-              SendQuickResponse(btCommand,0);
+              unsigned long ulTimeOut = millis() + 10000;
+              do
+              {
+                wl_status_t APsts;
+                APsts = WiFi.status();
+                if (APsts == WL_CONNECTED)
+                {
+                  SendQuickResponse(btCommand,0);
+                  bSentRsp = true;
+                  break;
+                }
+                else if (APsts == WL_CONNECT_FAILED)
+                {
+                  SendQuickResponse(btCommand,UNAPI_ERR_NO_NETWORK);
+                  bSentRsp = true;
+                  break;
+                }
+                yield();
+              }
+              while (ulTimeOut>millis());
+              if (!bSentRsp)
+                SendQuickResponse(btCommand,UNAPI_ERR_NO_NETWORK);
             }
             else
               SendQuickResponse(btCommand,UNAPI_ERR_INV_PARAM);
           }
+        }
         break;
         case TCPIP_GET_CAPAB:
           if ((uiCmdDataLen != 1) || (btCommandData[0]==0) || (btCommandData[0]>4))
@@ -1153,6 +1393,7 @@ proccesscmd:
             SendResponse(btCommand,UNAPI_ERR_INV_PARAM,0,0);
           else
           {
+            WaitConnectionIfNeeded();
             switch (btCommandData[0])
             {
               case TCPIP_GET_IPINFO_LOCALIP:
@@ -1219,7 +1460,100 @@ proccesscmd:
             SendResponse(btCommand,UNAPI_ERR_OK,1,&ucNetState);
           }          
           break;  
-
+          
+        case TCPIP_DNS_Q_NEW:
+          {
+            unsigned char ucIsIp = true;
+            unsigned char ucDirectIp[4];
+            unsigned char *ucDQNstrstr;
+            unsigned int uiDQNi;
+            unsigned char ucDQNflags = btCommandData[0];
+            unsigned char ucPoints = 0;
+            if ((uiCmdDataLen < 2)|| (ucDQNflags&0xf8))
+              SendResponse(btCommand,UNAPI_ERR_INV_PARAM,0,0);
+            else
+            {            
+              btCommandData[uiCmdDataLen]=0; //zero terminate the DNS strings           
+              // Check if it is an IP or something to resolve
+              if (uiCmdDataLen<17) // 123.567.901.345 -> if it is more than 15 bytes long, remember CmdDataLen includes the first byte that is the flag
+              {
+                for (uiDQNi = 1; uiDQNi < uiCmdDataLen; ++uiDQNi)
+                {
+                  if ((btCommandData[uiDQNi]<'0')||(btCommandData[uiDQNi]>'9')) // not a digit
+                  {
+                    if (btCommandData[uiDQNi]=='.')
+                      ++ucPoints;
+                    else
+                    {
+                      ucIsIp = false;
+                      break;
+                    }
+                    if (ucPoints>3)
+                    {
+                      ucIsIp = false;
+                      break;
+                    }
+                  }
+                }
+                if (ucPoints == 3) //ok, if it is a valid IP address, it must have three points, otherwise it is not an IP address
+                {
+                  ucDQNstrstr = &btCommandData[1];                  
+                  if (atoi((const char*)ucDQNstrstr)<0x100)
+                  {
+                    ucDirectIp[0] = (unsigned char)atoi((const char*)ucDQNstrstr);
+                    ucDQNstrstr = (unsigned char*) strstr ((const char*)ucDQNstrstr,".");
+                    if ((ucDQNstrstr) && (atoi((const char*)&ucDQNstrstr[1])<0x100))
+                    {                      
+                      ucDirectIp[1] = (unsigned char)atoi((const char*)&ucDQNstrstr[1]);
+                      ++ucDQNstrstr;
+                      ucDQNstrstr = (unsigned char*) strstr ((const char*)ucDQNstrstr,".");
+                      if ((ucDQNstrstr) && (atoi((const char*)&ucDQNstrstr[1])<0x100))
+                      {
+                        ucDirectIp[2] = atoi((const char*)&ucDQNstrstr[1]);
+                        ++ucDQNstrstr;
+                        ucDQNstrstr = (unsigned char*) strstr ((const char*)ucDQNstrstr,".");
+                        if ((ucDQNstrstr) && (atoi((const char*)&ucDQNstrstr[1])<0x100))
+                        {
+                          ucDirectIp[3] = atoi((const char*)&ucDQNstrstr[1]);
+                          ucIsIp = true;
+                        }
+                        else
+                          ucIsIp = false;  
+                      }
+                      else
+                        ucIsIp = false;
+                    }
+                    else
+                      ucIsIp = false;
+                  }
+                  else
+                    ucIsIp = false;
+                }
+                else
+                  ucIsIp = false;
+              }
+              else
+                ucIsIp = false;
+  
+              if ((ucDQNflags&2)&&(!ucIsIp))
+                SendResponse(btCommand,UNAPI_ERR_INV_IP,0,0);
+              else
+              {
+                WaitConnectionIfNeeded();
+                if (ucIsIp)
+                  SendResponse(btCommand,UNAPI_ERR_OK,4,&ucDirectIp[0]);
+                else
+                {                  
+                  if(WiFi.hostByName((const char*)&btCommandData[1],DNSQueryIP))
+                    SendResponse(btCommand,UNAPI_ERR_OK,4,&DNSQueryIP[0]);
+                  else
+                    SendResponse(btCommand,UNAPI_ERR_DNS,0,0);
+                }
+              }
+            }
+          }
+          break;
+          
         case TCPIP_DNS_Q:          
           if (uiCmdDataLen < 1)
             SendResponse(btCommand,UNAPI_ERR_INV_PARAM,0,0);
