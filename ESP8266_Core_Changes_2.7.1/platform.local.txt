@@ -1,0 +1,2 @@
+compiler.c.extra_flags=-DPUYA_SUPPORT=1
+compiler.cpp.extra_flags={compiler.c.extra_flags}
