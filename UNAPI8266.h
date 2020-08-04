@@ -97,6 +97,7 @@ enum CustomFunctions {
   CUSTOM_F_WARMBOOT = 'W',
   CUSTOM_F_HOLDCONNECTION = 'H',
   CUSTOM_F_RELEASECONNECTION = 'h',
+  CUSTOM_F_GETAPSTS = 'g',
   CUSTOM_F_QUERY = '?'
 };
 

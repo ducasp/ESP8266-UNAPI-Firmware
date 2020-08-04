@@ -110,6 +110,17 @@ bool bSNTPOK = false;
 bool bHoldConnection = false;
 time_t now;
 bool bSkipStateCheck = false;
+station_config myConfig;
+
+void getConfig()
+{
+  wifi_station_get_config(&myConfig);
+}
+
+unsigned char getConnStatus()
+{
+  return wifi_station_get_connect_status();
+}
 
 // Set time via NTP, as required for x.509 validation
 void setClock(bool bFastReturn = false) {
@@ -767,6 +778,17 @@ void received_data_parser ()
             Serial.print("R0");
             if (!bSerialUpdateInProgress)
               system_restart();
+            break;
+          //GET Access Point Status
+          case CUSTOM_F_GETAPSTS:
+          {
+            unsigned char uchConSts[34]; 
+            memset(uchConSts,0,sizeof(uchConSts));     
+            uchConSts[0]= getConnStatus();
+            getConfig();
+            memcpy(&uchConSts[1],myConfig.ssid,32);
+            SendResponse (CUSTOM_F_GETAPSTS, UNAPI_ERR_OK, (2+strlen((const char*)&uchConSts[1])), uchConSts);
+          }
             break;
           //Query?
           case CUSTOM_F_QUERY:
