@@ -1,11 +1,11 @@
 /*
 --
--- UNAPI8266.ino
+-- ESP8266-UNAPI-Firmware.ino
 --   ESP8266 UNAPI Implementation.
 --   Revision 1.20
 --
 -- Requires Arduino IDE and ESP8266 libraries
--- Copyright (c) 2019 - 2020 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
+-- Copyright (c) 2019 - 2021 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
 -- All rights reserved.
 --
 -- Redistribution and use of this source code or any derivative works, are
