@@ -5,11 +5,17 @@ Copyright (c) 2019 - 2021 Oduvaldo Pavan Junior ( ducasp@ gmail.com ) All rights
 ## Table of Contents
 
 1. [Introduction / Design Choices - Goals](#goals)
-    1. [Introduction](#intro)
-    2. [Design Choices - Goals](#dcgoals)    
+   1. [Introduction](#intro)
+   2. [Design Choices - Goals](#dcgoals)    
 2. [Protocol](#protocol)
 3. [Configurations / Behavior Modifiers](#config)
 4. [Commands](#commands)
+   1. [Custom Commands](#ccommands)
+      1. [Reset](#creset)
+      2. [Retry Transmission](#cretry)
+      3. [Scan Available Access Points](#cscans)
+         4. [Scan Available Access Points Results](#cscanr)
+   2. [UNAPI Commands](#ucommands)    
 
 ## <a name="goals"></a> Introduction / Design Choices - Goals
 
@@ -82,4 +88,114 @@ If no response data is expected for that command:
 
 ## <a name="config"></a> Configurations / Behavior Modifiers
 
+This firmware uses ESP8266 Arduino IDE EEPROM functionality, that uses part of the flash memory that is not affected during firmware or file system updates to store a few bytes of data. 32 bytes of flash memory are reserved for this firmware, that are used as follow:
+
+| EEPROM Address(es) | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Default Value                    |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| 0 to 7             | Configuration File Name: this is mostly to indicate whether the EEPROM has already been initialized or not, if not containing the expected string (that is not zero terminated), firmware will consider it will need to initialize EEPROM and device configuration to default values.                                                                                                                                                                                                      | "ESPUNAPI"                       |
+| 8                  | Structure Version: this identifies which structure of data has been saved to the EEPROM, if an older version if found, a newer one with the extra configurations is generated, using the default values.                                                                                                                                                                                                                                                                                   | 2                                |
+| 9                  | Nagle Algorithm: tells whether Nagle Algorithm is off (0) or on (1).                                                                                                                                                                                                                                                                                                                                                                                                                       | 0                                |
+| 10                 | Always On: tells whether Wi-Fi radio is always on (1) or if it will be automatically disabled after a given period (0).                                                                                                                                                                                                                                                                                                                                                                    | 0                                |
+| 11-14              | Radio Off Timer: 32 bits unsigned integer containing the time in seconds that need to elapse with the device idle and without open connections before turning off the Wi-Fi radio automatically. Only taken into consideration if Always On is set to 0.                                                                                                                                                                                                                                   | 120                              |
+| 15                 | Auto Clock: this is a byte that the ROM version of the driver uses to determine a few of its behavior. Current possible values are: (0) Normal Operation but do not set clock automatically, (1) Will wait up to 10s for SNTP server response during computer boot and if a response is received will to update the system time and date with SNTP information, (2) Same as 1 but will turn off the Wi-Fi radio as soon as clock is set and (3) Will disable Wi-Fi radio and UNAPI Driver. | 0                                |
+| 16-19              | GMT Setting: 32 bits integer that allows to add a GMT offset from -12 to +12 hours to the time and date response from the SNTP server. Only full hour adjustment is supported.                                                                                                                                                                                                                                                                                                             | -3 (Brazil - Brasilia time zone) |
+| 20-31              | Unused                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | ?                                |
+
+**Note:** IP Configuration (whether it is set to use DHCP or manual IP assignment) and DNS configuration (whether it is automatic from DHCP or force a different DNS server to be used) are saved within ESPRESSIF nonos SDK automatically, not needing to be saved in the configuration structure.
+
 ## <a name="commands"></a> Commands
+
+### <a name="ccommands"></a> Custom Commands
+
+#### <a name="creset"></a> Reset
+
+This command will cause a full reset to the device, as the device was being powered off.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:|:-------- |:----- |
+| 0        | CMD_BYTE | 'R'   |
+
+*Response Structure:*
+
+| Position | Function    | Value |
+|:--------:| ----------- | ----- |
+| 0        | CMD_BYTE    | 'R'   |
+| 1        | Fixed Value | '0'   |
+
+#### <a name="cretry"></a> Retry Transmission
+
+This command will cause the latest command response to be re-sent.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+| -------- | -------- | ----- |
+| 0        | CMD_BYTE | 'r'   |
+
+*Response Structure:* depends on the latest command executed
+
+#### <a name="cscans"></a> Scan Available Access Points
+
+This command will cause the device to start a scan for available Access Points in the range of the device radio. This is a function that takes quite some time to finish, so you need to query for Scan Results after starting the Scan with this command.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:| -------- | ----- |
+| 0        | CMD_BYTE | 'S'   |
+
+*Response Structure:*
+
+| Position | Function   | Value         |
+|:--------:| ---------- | ------------- |
+| 0        | CMD_BYTE   | 'S'           |
+| 1        | Error Code | 0 - always Ok |
+
+#### <a name="cscanr"></a> Scan Available Access Points Results
+
+This command will return the results of the latest scan for available Access Points, or, the progress of the current scan if it did not finish.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+| -------- | -------- | ----- |
+| 0        | CMD_BYTE | 's'   |
+
+*Response Structure when not finished or no Access Point has been found:*
+
+| Position | Function   | Value                                                                                       |
+| -------- | ---------- | ------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE   | 's'                                                                                         |
+| 1        | Error Code | 2 - Scan finished and no Network in range<br/>3 - Scan still in progress, check again later |
+
+*Response Structure when finished:*
+
+| Position | Function                      | Value                 |
+|:--------:| ----------------------------- | --------------------- |
+| 0        | CMD_BYTE                      | 's'                   |
+| 1        | Error Code                    | 0 - Ok                |
+| 2        | Number of Access Points Found | 1 to 255              |
+| 3 - XXX  | Access Point Information List | See description below |
+
+*Access Point Information List*:
+
+The list has a variable size and it is always comprised of:
+
+| Position | Function   | Value                                                                                             |
+| -------- | ---------- | ------------------------------------------------------------------------------------------------- |
+| 0 - X    | AP Name    | A variable number of characters describing the Access Point Name, NULL character (0) is not valid |
+| X+1      | Separator  | 0 - Null character, indicating the end of the AP Name                                             |
+| X+2      | Encryption | 'O' - Means open, no password needed<br/>'E' - Means encrypted, password needed                   |
+| X+3 - Y  | AP Name    | ....                                                                                              |
+
+### <a name="ucommands"></a> UNAPI Commands
