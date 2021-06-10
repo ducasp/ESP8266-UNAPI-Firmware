@@ -14,7 +14,7 @@ Copyright (c) 2019 - 2021 Oduvaldo Pavan Junior ( ducasp@ gmail.com ) All rights
       1. [Reset](#creset)
       2. [Retry Transmission](#cretry)
       3. [Scan Available Access Points](#cscans)
-         4. [Scan Available Access Points Results](#cscanr)
+      4. [Scan Available Access Points Results](#cscanr)
    2. [UNAPI Commands](#ucommands)    
 
 ## <a name="goals"></a> Introduction / Design Choices - Goals
