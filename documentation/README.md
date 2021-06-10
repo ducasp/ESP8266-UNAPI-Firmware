@@ -5,8 +5,8 @@ Copyright (c) 2019 - 2021 Oduvaldo Pavan Junior ( ducasp@ gmail.com ) All rights
 ## Table of Contents
 
 1. [Introduction / Design Choices - Goals](#goals)
-    1.1 [Introduction](#intro)
-    1.1 [Design Choices - Goals](#dcgoals)    
+    1. [Introduction](#intro)
+    2. [Design Choices - Goals](#dcgoals)    
 2. [Protocol](#protocol)
 3. [Configurations / Behavior Modifiers](#config)
 4. [Commands](#commands)
