@@ -12,9 +12,31 @@ Copyright (c) 2019 - 2021 Oduvaldo Pavan Junior ( ducasp@ gmail.com ) All rights
 4. [Commands](#commands)
    1. [Custom Commands](#ccommands)
       1. [Reset](#creset)
-      2. [Retry Transmission](#cretry)
-      3. [Scan Available Access Points](#cscans)
-      4. [Scan Available Access Points Results](#cscanr)
+      2. [Warm Reset](#cwreset)
+      3. [Query](#cquery)
+      4. [Get Version](#cgetver)
+      5. [Retry Transmission](#cretry)
+      6. [Scan Available Access Points](#cscans)
+      7. [Scan Available Access Points Results](#cscanr)
+      8. [Connect to Access Point](#cconnectap)
+      9. [Get Access Point Status](#cgetapsts) 
+      10. [Update Firmware Over the Air](#cotafwupdt)
+      11. [Update Certificates Over the Air](#cotacertupdt)      
+      12. [Start Local Firmware Update](#clocalfwupdt)
+      13. [Start Local Certificate Update](#clocalcertupdt)
+      14. [Write Block](#clocalwriteblock)
+      15. [Finish Local Update](#clocalfinish)
+      16. [Initialize Certificates](#cinitcerts)
+      17. [Disable Nagle Algorithm](#cnagledis)
+      18. [Enable Nagle Algorithm](#cnagleen)
+      19. [Set Radio Off Time-Out](#cradiotimeout)
+      20. [Disable Radio](#cradiodisable)
+      21. [Get Settings](#cgetset)
+      22. [Get Auto Clock Settings](#cgetaclkset)
+      23. [Set Auto Clock Settings](#csetaclkset)
+      24. [Get Date and Time](#cgetdate)      
+      25. [Hold Connection](#choldconn)
+      26. [Release Connection](#creleaseconn)
    2. [UNAPI Commands](#ucommands)    
 
 ## <a name="goals"></a> Introduction / Design Choices - Goals
@@ -126,6 +148,62 @@ This command will cause a full reset to the device, as the device was being powe
 | 0        | CMD_BYTE    | 'R'   |
 | 1        | Fixed Value | '0'   |
 
+#### <a name="cwreset"></a> Warm Reset
+
+This command will cause a quick reset of the device, closing any pending connections and restoring settings.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:|:-------- |:----- |
+| 0        | CMD_BYTE | 'W'   |
+
+*Response Structure:*
+
+| Position | Function | Value   |
+|:--------:| -------- | ------- |
+| 0-4      | Response | "Ready" |
+
+#### <a name="cquery"></a> Query
+
+This command is a simple way to check if the firmware is operational or not. It can serve for purpouses like checking if the device is connected or if the firmware flashing after a reboot has already finished, as the device will only reply once the firmware is operational.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:|:-------- |:----- |
+| 0        | CMD_BYTE | '?'   |
+
+*Response Structure:*
+
+| Position | Function | Value |
+|:--------:| -------- | ----- |
+| 0-2      | Response | "Ok"  |
+
+#### <a name="cgetver"></a> Get Version
+
+This command will return the firmware version.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:|:-------- |:----- |
+| 0        | CMD_BYTE | 'V'   |
+
+*Response Structure:*
+
+| Position | Function      | Value |
+|:--------:| ------------- | ----- |
+| 0        | CMD_BYTE      | 'V'   |
+| 1        | Version Major | 1     |
+| 2        | Version Minor | 2     |
+
 #### <a name="cretry"></a> Retry Transmission
 
 This command will cause the latest command response to be re-sent.
@@ -168,13 +246,13 @@ This command will return the results of the latest scan for available Access Poi
 *Command Structure:*
 
 | Position | Function | Value |
-| -------- | -------- | ----- |
+|:--------:| -------- | ----- |
 | 0        | CMD_BYTE | 's'   |
 
 *Response Structure when not finished or no Access Point has been found:*
 
 | Position | Function   | Value                                                                                       |
-| -------- | ---------- | ------------------------------------------------------------------------------------------- |
+|:--------:| ---------- | ------------------------------------------------------------------------------------------- |
 | 0        | CMD_BYTE   | 's'                                                                                         |
 | 1        | Error Code | 2 - Scan finished and no Network in range<br/>3 - Scan still in progress, check again later |
 
@@ -192,10 +270,471 @@ This command will return the results of the latest scan for available Access Poi
 The list has a variable size and it is always comprised of:
 
 | Position | Function   | Value                                                                                             |
-| -------- | ---------- | ------------------------------------------------------------------------------------------------- |
+|:--------:| ---------- | ------------------------------------------------------------------------------------------------- |
 | 0 - X    | AP Name    | A variable number of characters describing the Access Point Name, NULL character (0) is not valid |
 | X+1      | Separator  | 0 - Null character, indicating the end of the AP Name                                             |
 | X+2      | Encryption | 'O' - Means open, no password needed<br/>'E' - Means encrypted, password needed                   |
 | X+3 - Y  | AP Name    | ....                                                                                              |
 
+#### <a name="cconnectap"></a> Connect to Access Point
+
+This command will connect to a given Access Point using a password if provided. **NOTE:** this command may take up to 10 seconds to send a response!
+
+*Input Parameters:* 
+
+The connection parameters, as follow:
+
+| Position | Function  | Value                                                                                             |
+|:--------:| --------- | ------------------------------------------------------------------------------------------------- |
+| 0 - X    | AP Name   | A variable number of characters describing the Access Point Name, NULL character (0) is not valid |
+| X+1      | Separator | 0 - Null character, indicating the end of the AP Name                                             |
+| X+2 - Y  | Password  | Optional parameter - if provided, will be used as the AP password.                                |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 'A'                                                                 |
+| 1-2      | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3-X      | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function   | Value                                                                                                                                                                                               |
+|:--------:| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE   | 'A'                                                                                                                                                                                                 |
+| 1        | Error Code | 0 - Ok, connected to the AP<br/>2 - Could not connect to the AP<br/>4 - Invalid parameters: most likely too short AP Name (less than 2 characters) or AP Name doesn't have the separator at the end |
+
+#### <a name="cgetapsts"></a> Get Access Point Status
+
+This command will retrieve the current connection status and the Access Point name if connected or trying to connect to one.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:|:-------- |:----- |
+| 0        | CMD_BYTE | 'g'   |
+
+*Response Structure:*
+
+| Position | Function      | Value                                                                                                                           |
+|:--------:| ------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE      | 'g'                                                                                                                             |
+| 1        | Error Code    | 0 - Ok                                                                                                                          |
+| 2 - 3    | Response Size | 16 bits value (MSB LSB) indicating the size of the response                                                                     |
+| 4        | Status        | 0 - Idle<br/>1 - Connecting<br/>2 - Wrong Password<br/>3 - AP Not Found<br/>4 - Connection Failure<br/>5 - Connected and got IP |
+| 5 - X    | AP Name       | Name of the Access point, a NULL (0) terminated string                                                                          |
+
+#### <a name="cotafwupdt"></a> Update Firmware Over the Air
+
+This command will connect to a given server (local or remote) to retrieve the firmware file and update it Over the Air. **NOTE:** this command may take considerable time to send the response depending upon connection speed and network traffic! A Reset command should be issued after a succesful update, and that reset will also take considerable time while it flashes the new firmware to the memory. I recommend no less than 20 seconds time-out for the command response and no less than 50 seconds time-out for the module to respond to commands after the Reset command.
+
+*Input Parameters:* 
+
+The OTA connection parameters, as follow:
+
+| Position | Function           | Value                                                                                            |
+|:--------:| ------------------ | ------------------------------------------------------------------------------------------------ |
+| 0 - 1    | Port               | Port to be used to connect to the OTA server, LSB in position 0 and MSB in position 1            |
+| 2 - X    | Server IP or URL   | Up to 255 bytes long names are accepted (IP addresses won't reach that limit) for DNS resolution |
+| X+1      | Separator          | 0 - Null character, indicating the end of Server IP / URL                                        |
+| X+2 - Y  | File Path and Name | Path and name of the file to get from the OTA server for this firmware update                    |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 'U'                                                                 |
+| 1-2      | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3-X      | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function   | Value                                                                                                                                                                                                                                                                                          |
+|:--------:| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE   | 'U'                                                                                                                                                                                                                                                                                            |
+| 1        | Error Code | 0 - Ok, file was saved and update will occur on next reset<br/>2 - Could not connect to the AP<br/>3 - Could not retrieve the file using the given input parameters<br/>4 - Invalid parameters: too large URL/IP or no terminator on the URL/IP, not enough input data, missing File Path/Name |
+
+#### <a name="cotacertupdt"></a> Update Certificates Over the Air
+
+This command will connect to a given server (local or remote) to retrieve the certificates file and update it Over the Air. **NOTE:** this command may take considerable time to send the response depending upon connection speed and network traffic! A Reset command should be issued after a succesful update, and that reset will also take considerable time while it flashes the new file system with the new certificates to the memory. I recommend no less than 20 seconds time-out for the command response and no less than 50 seconds time-out for the module to respond to commands after the Reset command. Also, notice that if Initialize Certificates command is not sent after the module finish flashing the data, this initialization procedure will be done during the first SSL connection attempt, which most likely will cause that connection to time-out or take really long time to connect, I strongly recommend using the Initialize Certificates command after a succesful certificate update/module is responding to commands after the reset.
+
+*Input Parameters:* 
+
+The OTA connection parameters, as follow:
+
+| Position | Function           | Value                                                                                            |
+|:--------:| ------------------ | ------------------------------------------------------------------------------------------------ |
+| 0 - 1    | Port               | Port to be used to connect to the OTA server, LSB in position 0 and MSB in position 1            |
+| 2 - X    | Server IP or URL   | Up to 255 bytes long names are accepted (IP addresses won't reach that limit) for DNS resolution |
+| X+1      | Separator          | 0 - Null character, indicating the end of Server IP / URL                                        |
+| X+2 - Y  | File Path and Name | Path and name of the file to get from the OTA server for this certificate update                 |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 'U'                                                                 |
+| 1-2      | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3-X      | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function   | Value                                                                                                                                                                                                                                                                                          |
+|:--------:| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE   | 'U'                                                                                                                                                                                                                                                                                            |
+| 1        | Error Code | 0 - Ok, file was saved and update will occur on next reset<br/>2 - Could not connect to the AP<br/>3 - Could not retrieve the file using the given input parameters<br/>4 - Invalid parameters: too large URL/IP or no terminator on the URL/IP, not enough input data, missing File Path/Name |
+
+#### <a name="clocalfwupdt"></a> Start Local Firmware Update
+
+This command will request the firmware to start the procedures for local firmware update, whose firmware file will be transmitted through commands. This command will evaluate if the firmware file appears correct and allow the procedure to start or not.
+
+*Input Parameters:* 
+
+The firmware file parameters, as follow:
+
+| Position | Function    | Value                                                                                              |
+|:--------:| ----------- | -------------------------------------------------------------------------------------------------- |
+| 0 - 7    | File Size   | Size of the file, expressed in a 32 bits unsigned integer, LSB at position 0 and MSB at position 7 |
+| 8 - 11   | File Header | The first 4 bytes read from the file                                                               |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 'Z'                                                                 |
+| 1-2      | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3-X      | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function   | Value                                                                                                                                                                                             |
+|:--------:| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE   | 'Z'                                                                                                                                                                                               |
+| 1        | Error Code | 0 - Ok, file is accepted and can continue transmission of firmware file using Write Block command<br/>4 - Invalid parameters: file is too large or its header is not valid, not enough input data |
+
+#### <a name="clocalcertupdt"></a> Start Local Certificates Update
+
+This command will request the firmware to start the procedures for local certificates update, whose certificates file will be transmitted through commands. This command will evaluate if the certificate file appears correct and allow the procedure to start or not.
+
+*Input Parameters:* 
+
+The certificates file parameters, as follow:
+
+| Position | Function    | Value                                                                                             |
+|:--------:| ----------- | ------------------------------------------------------------------------------------------------- |
+| 0 - 7    | File Size   | Size of the file, expressed in a 32 bits unsigned integer, LSB at position 0 and MSB at postion 7 |
+| 8 - 11   | File Header | The first 4 bytes read from the file                                                              |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 'Y'                                                                 |
+| 1-2      | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3-X      | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function   | Value                                                                                                                                                                                                        |
+|:--------:| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0        | CMD_BYTE   | 'Y'                                                                                                                                                                                                          |
+| 1        | Error Code | 0 - Ok, file is accepted and can continue transmission of certificates file using Write Block command<br/>3 - File is too large or its header is not valid<br/>4 - Invalid parameters: not enough input data |
+
+#### <a name="clocalwriteblock"></a> Write Block
+
+This command will send a block of data from the firmware or certificates update file to be written to the flash memory. **NOTE:** recommendation is to use 256 bytes blocks, starting from the position 0 of the file (so, the file header is sent as well in the first block sent). As this is a flash memory operation, once firmware gathers enough data to write on a block of flash memory, recommended command response time-out is of at least 10 seconds.
+
+*Input Parameters:* 
+
+The current file block to be written, as follow:
+
+| Position | Function        | Value                            |
+|:--------:| --------------- | -------------------------------- |
+| 0 - FF   | File Block Data | Data from the current file block |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 'z'                                                                 |
+| 1-2      | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3-X      | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function   | Value                                                                                                                                                                                                                                           |
+|:--------:| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE   | 'z'                                                                                                                                                                                                                                             |
+| 1        | Error Code | 0 - Ok, file is accepted and can continue transmission of firmware file using Write Block command<br/>3 - Failure writing block to flash<br/>4 - Invalid parameters: not enough input data or a firmware or certificates update was not started |
+
+#### <a name="clocalfinish"></a> Finish Local Update
+
+This command tells that all firmware or certificate file blocks have been sent. Firmware will then check consistency of the file, and if it considers the file ok, will reboot automatically to move the received data to the firmware block or  to the file system block. **NOTE:** As this is a flash memory operation, and involves file hash checking of the whole received data, recommended command response time-out is of at least 30 seconds. The automatic reset will take considerable time while it flashes the new file system with the new certificates or the new firmware to the memory. I recommend no less than 50 seconds time-out for the module to respond to commands after Finish Local Update command returns Ok.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:| -------- | ----- |
+| 0        | CMD_BYTE | 'E'   |
+
+*Response Structure:*
+
+| Position | Function   | Value                                                                                                                                                                                                                                                |
+|:--------:| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE   | 'E'                                                                                                                                                                                                                                                  |
+| 1        | Error Code | 0 - Ok, transfer was succesful and will reboot to make effective the new firmware or file system<br/>3 - Failure: file consistency check failed, file might be corrupted<br/>4 - Invalid parameters: firmware or certificates update was not started |
+
+#### <a name="cinitcerts"></a> Initialize Certificates
+
+This command will make an index of all certificates included on the new file system. If this command is not sent after a file system / certificates update, that index creation will take place automatically during the request of the first SSL connection, which will cause that command to take too much time to return. Thus, it is recommended that this command is always executed after Certificates update, be it local or OTA. **NOTE:** the indexation procedure takes some time, recommended command response time-out is of at least 60 seconds.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:|:-------- |:----- |
+| 0        | CMD_BYTE | 'I'   |
+
+*Response Structure:*
+
+| Position | Function   | Value                                                                                                                                                                          |
+|:--------:| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0        | CMD_BYTE   | 'I'                                                                                                                                                                            |
+| 1        | Error Code | 0 - Ok, either index creation was already done or it was succesful<br/>3 - Failure: index creation failed, perhaps the certificates and index did not fit the file system size |
+
+#### <a name="cnagledis"></a> Disable Nagle Algorithm
+
+Nagle Algorithm might cause performance issues on some applications. This algorithm will delay sending data over a connection until the transmission window size has been hit or a time-out (usually a couple hundred milliseconds) occurred. This can cause poor performance on block driven protocols that require an ACKnowledge to be sent back, as this ACKnowledge is small, it is usually delayed, thus, restraining the number of packets that can be send over the time. This is specifically detrimental to performance if the other side has "Delayed ACK", where your protocol ACK will wait couple hundred milliseconds to be sent, and the other end ACK to your TCP packet containing your ACK also will be delayed, hurting performance really bad. On the other hand, it might be useful to avoid network congestion when many small packets would be sent consecutivelly, as an example, a Telnet client sending key strokes, each key stroke will use a single TCP packet, so there is a 40 bytes overhead (TCP Header) to send a single byte, while Nagle can just pack a lot of keystrokes on one packet (causes lag, but lowers the network traffic). **NOTE:** The setting won't be applied to any connection that is currently opened, it will apply to any connection made after it. This setting is saved and respected even after a Reset or Power Cycle.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:| -------- | ----- |
+| 0        | CMD_BYTE | 'N'   |
+
+*Response Structure:*
+
+| Position | Function   | Value         |
+|:--------:| ---------- | ------------- |
+| 0        | CMD_BYTE   | 'N'           |
+| 1        | Error Code | 0 - always Ok |
+
+#### <a name="cnagleen"></a> Enable Nagle Algorithm
+
+Nagle Algorithm might cause performance issues on some applications. This algorithm will delay sending data over a connection until the transmission window size has been hit or a time-out (usually a couple hundred milliseconds) occurred. This can cause poor performance on block driven protocols that require an ACKnowledge to be sent back, as this ACKnowledge is small, it is usually delayed, thus, restraining the number of packets that can be send over the time. This is specifically detrimental to performance if the other side has "Delayed ACK", where your protocol ACK will wait couple hundred milliseconds to be sent, and the other end ACK to your TCP packet containing your ACK also will be delayed, hurting performance really bad. On the other hand, it might be useful to avoid network congestion when many small packets would be sent consecutivelly, as an example, a Telnet client sending key strokes, each key stroke will use a single TCP packet, so there is a 40 bytes overhead (TCP Header) to send a single byte, while Nagle can just pack a lot of keystrokes on one packet (causes lag, but lowers the network traffic). **NOTE:** The setting won't be applied to any connection that is currently opened, it will apply to any connection made after it. This setting is saved and respected even after a Reset or Power Cycle.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:| -------- | ----- |
+| 0        | CMD_BYTE | 'D'   |
+
+*Response Structure:*
+
+| Position | Function   | Value         |
+|:--------:| ---------- | ------------- |
+| 0        | CMD_BYTE   | 'D'           |
+| 1        | Error Code | 0 - always Ok |
+
+#### <a name="cradiotimeout"></a> Set Radio Off Time-Out
+
+This command will set a new Time-Out for the automatic Radio Off feature.
+
+*Input Parameters:* 
+
+The firmware file parameters, as follow:
+
+| Position | Function     | Value                                                                                                                                                                                                    |
+|:--------:| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 - 1    | New Time-Out | Time-out in second, expressed in a 16 bits unsigned integer, LSB at position 0 and MSB at position 1. If lower than 30, firmware will use 30 seconds. If higher than 600, firmware will use 600 seconds. |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 'T'                                                                 |
+| 1-2      | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3-X      | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function   | Value                                                                        |
+|:--------:| ---------- | ---------------------------------------------------------------------------- |
+| 0        | CMD_BYTE   | 'T'                                                                          |
+| 1        | Error Code | 0 - Ok, new time-out saved<br/>4 - Invalid parameters: not enough input data |
+
+#### <a name="cradiodisable"></a> Disable Radio
+
+This command requests immediate action to disable the radio. **NOTE:** radio won't be disabled if a connection is active or if a command is being received. Most commands, except for Release Connection/Reset/Query, will cause the radio to be re-enabled again.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:| -------- | ----- |
+| 0        | CMD_BYTE | 'D'   |
+
+*Response Structure:*
+
+| Position | Function   | Value         |
+|:--------:| ---------- | ------------- |
+| 0        | CMD_BYTE   | 'D'           |
+| 1        | Error Code | 0 - always Ok |
+
+#### <a name="cgetset"></a> Get Settings
+
+This command will retrieve the current Nagle and Radio Time-Out settings.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:|:-------- |:----- |
+| 0        | CMD_BYTE | 'Q'   |
+
+*Response Structure:*
+
+| Position | Function       | Value                                                       |
+|:--------:| -------------- | ----------------------------------------------------------- |
+| 0        | CMD_BYTE       | 'Q'                                                         |
+| 1 - 2    | Response Size  | 16 bits value (MSB LSB) indicating the size of the response |
+| 3-X      | Nagle Setting  | "ON" or "OFF"                                               |
+| X+1      | Separator      | ':'                                                         |
+| X+2 - Y  | Radio Time-Out | Radio Time-Out as a string, i.e.: "30" or "150"             |
+
+#### <a name="cgetaclkset"></a> Get Auto Clock Settings
+
+This command will retrieve the current Auto Clock setting and the GMT Offset Adjust. **NOTE:** Automatic Clock adjusting is a feature of a device driver, this setting is just to help the device driver to store and retrieve that setting, ESP is not able to do this operation.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:|:-------- |:----- |
+| 0        | CMD_BYTE | 'c'   |
+
+*Response Structure:*
+
+| Position | Function           | Value                                                                                                                                                                        |
+|:--------:| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE           | 'c'                                                                                                                                                                          |
+| 1        | Error Code         | 0 - Ok                                                                                                                                                                       |
+| 2 - 3    | Response Size      | 16 bits value (MSB LSB) indicating the size of the response                                                                                                                  |
+| 4        | Auto Clock Setting | 0 - Normal Operation, No Auto Clock<br/>1 - Normal Operation, Try to Auto Set the Clock<br/>2 - Same as 1, but turn off radio after doing it<br/>3 - Disable Radio and UNAPI |
+| 5        | GMT Offset Adjust  | Signed byte indicating GMT Offset in hours                                                                                                                                   |
+
+#### <a name="csetaclkset"></a> Set Auto Clock Settings
+
+This command will save the current Auto Clock setting and the GMT Offset Adjust. **NOTE:** Automatic Clock adjusting is a feature of a device driver, this setting is just to help the device driver to store and retrieve that setting, ESP is not able to do this operation.
+
+*Input Parameters:* 
+
+The Auto Clock settings, as follow:
+
+| Position | Function           | Value                                                                                                                                                                        |
+|:--------:| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | Auto Clock Setting | 0 - Normal Operation, No Auto Clock<br/>1 - Normal Operation, Try to Auto Set the Clock<br/>2 - Same as 1, but turn off radio after doing it<br/>3 - Disable Radio and UNAPI |
+| 1        | GMT Offset Adjust  | Signed byte indicating GMT Offset in hours, only 0 to 12 and -1 to -12 are accepted                                                                                          |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 'C'                                                                 |
+| 1-2      | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3-X      | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function   | Value                                                                                               |
+|:--------:| ---------- | --------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE   | 'C'                                                                                                 |
+| 1        | Error Code | 0 - Ok, new settings saved<br/>4 - Invalid parameters: not enough input data or values out of range |
+
+#### <a name="cgetdate"></a> Get Date and Time
+
+This command will retrieve the current date and time through SNTP. **NOTE:** Values are adjusted with Auto Clock GMT Offset Adjust setting.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:|:-------- |:----- |
+| 0        | CMD_BYTE | 'G'   |
+
+*Response Structure when SNTP connection was possible:*
+
+| Position | Function      | Value                                                                                |
+|:--------:| ------------- | ------------------------------------------------------------------------------------ |
+| 0        | CMD_BYTE      | 'G'                                                                                  |
+| 1        | Error Code    | 0 - Ok                                                                               |
+| 2 - 3    | Response Size | 16 bits value (MSB LSB) indicating the size of the response                          |
+| 4        | Seconds       | Current seconds                                                                      |
+| 5        | Minutes       | Current minutes                                                                      |
+| 6        | Hours         | Current hours                                                                        |
+| 7        | Day           | Current Month day                                                                    |
+| 8        | Month         | Current Month                                                                        |
+| 9-10     | Year          | Year in an unsigned 16 bits integer format, LSB at position 9 and MSB at position 10 |
+
+*Response Structure when SNTP connection was not possible:*
+
+| Position | Function   | Value                                                  |
+|:--------:| ---------- | ------------------------------------------------------ |
+| 0        | CMD_BYTE   | 'G'                                                    |
+| 1        | Error Code | 2 - No network connection or SNTP server not available |
+
+#### <a name="choldconn"></a> Hold Connection
+
+This command requests that the radio connection is held on regardless of time-out periods.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:| -------- | ----- |
+| 0        | CMD_BYTE | 'H'   |
+
+*Response Structure:*
+
+| Position | Function   | Value         |
+|:--------:| ---------- | ------------- |
+| 0        | CMD_BYTE   | 'H'           |
+| 1        | Error Code | 0 - always Ok |
+
+#### <a name="creleaseconn"></a> Release Connection
+
+This command requests that the radio connection hold is released, re-enabling time-out periods to automatically disable the radio.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:| -------- | ----- |
+| 0        | CMD_BYTE | 'h'   |
+
+*Response Structure:*
+
+| Position | Function   | Value         |
+|:--------:| ---------- | ------------- |
+| 0        | CMD_BYTE   | 'h'           |
+| 1        | Error Code | 0 - always Ok |
+
 ### <a name="ucommands"></a> UNAPI Commands
+
+The intent of this document is not to explain each command functionality. It is only to tell how the input parameters from UNAPI Commands should be ordered and how the output result will be ordered on the command response. For more details on how each UNAPI command work read the [MSX-UNAPI-specification/TCP-IP UNAPI specification](https://github.com/Konamiman/MSX-UNAPI-specification/blob/master/docs/TCP-IP%20UNAPI%20specification.md).
