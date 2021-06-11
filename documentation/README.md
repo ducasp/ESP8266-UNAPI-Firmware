@@ -37,7 +37,20 @@ Copyright (c) 2019 - 2021 Oduvaldo Pavan Junior ( ducasp@ gmail.com ) All rights
       24. [Get Date and Time](#cgetdate)      
       25. [Hold Connection](#choldconn)
       26. [Release Connection](#creleaseconn)
-   2. [UNAPI Commands](#ucommands)    
+   2. [UNAPI Commands](#ucommands)
+      1. [TCPIP_GET_CAPAB](#cugetcapab)
+      2. [TCPIP_GET_IPINFO](#cugetipinfo)
+      3. [TCPIP_NET_STATE](#cunetstate)
+      4. [TCPIP_SEND_ECHO](#cusendecho)
+      5. [TCPIP_RCV_ECHO](#curcvecho)
+      6. [TCPIP_DNS_Q](#cudnsq)
+      7. [TCPIP_DNS_Q_NEW](#cudnsqnew)
+      8. [TCPIP_DNS_S](#cudnss)
+      9. [TCPIP_UDP_OPEN](#cuudpopen)
+      10. [TCPIP_UDP_CLOSE](#cuudpclose)
+      11. [TCPIP_UDP_STATE](#cuudpstate)
+      12. [TCPIP_UDP_SEND](#cuudpsend)
+      13. [TCPIP_UDP_RCV](#cuudprcv)
 
 ## <a name="goals"></a> Introduction / Design Choices - Goals
 
@@ -738,3 +751,352 @@ This command requests that the radio connection hold is released, re-enabling ti
 ### <a name="ucommands"></a> UNAPI Commands
 
 The intent of this document is not to explain each command functionality. It is only to tell how the input parameters from UNAPI Commands should be ordered and how the output result will be ordered on the command response. For more details on how each UNAPI command work read the [MSX-UNAPI-specification/TCP-IP UNAPI specification](https://github.com/Konamiman/MSX-UNAPI-specification/blob/master/docs/TCP-IP%20UNAPI%20specification.md).
+
+#### <a name="cugetcapab"></a> TCPIP_GET_CAPAB
+
+This command will retrieve information about the TCP/IP capabilities and features offered by the device.
+
+*Input Parameters:* 
+
+Information to be retrieved:
+
+| Position | Function                               | Value                                                                                                                                                                                       |
+|:--------:| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | Index of information block to retrieve | 1 - Capabilities and features flags, link level protocol<br/>2 - Connection pool size and status<br/>3 - Maximum datagram size allowed<br/>4 - Second set of capabilities and feature flags |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 1                                                                   |
+| 1-2      | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3-X      | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure for Index 1:*
+
+| Position | Function                 | Value                                                                           |
+|:--------:| ------------------------ | ------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE                 | 1                                                                               |
+| 1        | Error Code               | 0 - Ok<br/>4 - Invalid parameters: not enough input data or values out of range |
+| 2 - 3    | Response Size            | 16 bits value (MSB LSB) indicating the size of the response                     |
+|          |                          | This part of response only exists if error code is 0                            |
+| 4 - 5    | Capabilities Flags       | 16 bits value (LSB MSB)                                                         |
+| 6 - 7    | Feature Flags            | 16 bits value (LSB MSB)                                                         |
+| 8        | Link Level Protocol used | 1 byte value                                                                    |
+
+*Response Structure for Index 2:*
+
+| Position | Function                                | Value                                                                           |
+|:--------:| --------------------------------------- | ------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE                                | 1                                                                               |
+| 1        | Error Code                              | 0 - Ok<br/>4 - Invalid parameters: not enough input data or values out of range |
+| 2 - 3    | Response Size                           | 16 bits value (MSB LSB) indicating the size of the response                     |
+|          |                                         | This part of response only exists if error code is 0                            |
+| 4        | Maximum Simultaneous TCP Connections    | 1 byte value                                                                    |
+| 5        | Maximum Simultaneous UDP Connections    | 1 byte value                                                                    |
+| 6        | Free TCP Connections Available          | 1 byte value                                                                    |
+| 7        | Free UDP Connections Available          | 1 byte value                                                                    |
+| 8        | Maximum Simultaneous raw IP Connections | 1 byte value                                                                    |
+| 9        | Free raw IP Connections Available       | 1 byte value                                                                    |
+
+*Response Structure for Index 3:*
+
+| Position | Function                       | Value                                                                           |
+|:--------:| ------------------------------ | ------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE                       | 1                                                                               |
+| 1        | Error Code                     | 0 - Ok<br/>4 - Invalid parameters: not enough input data or values out of range |
+| 2 - 3    | Response Size                  | 16 bits value (MSB LSB) indicating the size of the response                     |
+|          |                                | This part of response only exists if error code is 0                            |
+| 4 - 5    | Maximum incoming datagram size | 16 bits value (LSB MSB)                                                         |
+| 6 - 7    | Maximum outgoing datagram size | 16 bits value (LSB MSB)                                                         |
+
+*Response Structure for Index 4:*
+
+| Position | Function                         | Value                                                                           |
+|:--------:| -------------------------------- | ------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE                         | 1                                                                               |
+| 1        | Error Code                       | 0 - Ok<br/>4 - Invalid parameters: not enough input data or values out of range |
+| 2 - 3    | Response Size                    | 16 bits value (MSB LSB) indicating the size of the response                     |
+|          |                                  | This part of response only exists if error code is 0                            |
+| 4 - 5    | Second Set of Capabilities Flags | 16 bits value (LSB MSB)                                                         |
+| 6 - 7    | Second Set of Feature Flags      | 16 bits value (LSB MSB)                                                         |
+
+#### <a name="cugetipinfo"></a> TCPIP_GET_IPINFO
+
+This command will retrieve information about the IP related to requested index.
+
+*Input Parameters:* 
+
+Information to be retrieved:
+
+| Position | Function                     | Value                                                                                                                              |
+|:--------:| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | Index of address to retrieve | 1 - Local IP Address<br/>2 - Peer IP Address<br/>3 - Subnet Mask<br/>4 - Default Gateway<br/>5 - Primary DNS<br/>6 - Secondary DNS |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 2                                                                   |
+| 1 - 2    | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3 - X    | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function      | Value                                                                           |
+|:--------:| ------------- | ------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE      | 2                                                                               |
+| 1        | Error Code    | 0 - Ok<br/>4 - Invalid parameters: not enough input data or values out of range |
+| 2 - 3    | Response Size | 16 bits value (MSB LSB) indicating the size of the response                     |
+|          |               | This part of response only exists if error code is 0                            |
+| 4 - 7    | IP Address    | Requested IP Address                                                            |
+
+#### <a name="cunetstate"></a> TCPIP_NET_STATE
+
+This command will retrieve state of network availability.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function          | Value                                                                       |
+|:--------:| ----------------- | --------------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 3                                                                           |
+| 1 - 2    | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters: 0x0000 |
+
+*Response Structure:*
+
+| Position | Function              | Value                                                       |
+|:--------:| --------------------- | ----------------------------------------------------------- |
+| 0        | CMD_BYTE              | 3                                                           |
+| 1        | Error Code            | 0 - Ok<br/>4 - Invalid parameters: input data received      |
+| 2 - 3    | Response Size         | 16 bits value (MSB LSB) indicating the size of the response |
+|          |                       | This part of response only exists if error code is 0        |
+| 4        | Current network state | 1 byte value                                                |
+
+#### <a name="cusendecho"></a> TCPIP_SEND_ECHO
+
+**This command is not implemented**
+
+#### <a name="curcvecho"></a> TCPIP_RCV_ECHO
+
+**This command is not implemented**
+
+#### <a name="cudnsq"></a> TCPIP_DNS_Q
+
+This command is deprecated and exists only for compatibility with older drivers. Consider using TCPIP_DNS_Q_NEW instead, that lowers the burden on computer CPU as well allowing to not need the driver to have to use RAM to convert IP data. This command expects that any error handling was already made at the driver level, so it receives only the string containing either the IP address to convert to numeric format or the host name to be resolved. **NOTE:** this is a blocking operation, even though UNAPI 1.1 and older requests it to not be. So the command itself will return only after DNS resolves an address or return an error. Recomendation is to have at least 15 seconds of time-out for this command to send a response.
+
+*Input Parameters:* 
+
+Host name or IP address to be resolved:
+
+| Position | Function                                        | Value                  |
+|:--------:| ----------------------------------------------- | ---------------------- |
+| 0 - X    | Host name or IP address, zero terminated string | Zero terminated string |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                                                              |
+|:--------:| ----------------- | -------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 6                                                                                                  |
+| 1-2      | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters, including the zero terminator |
+
+*Response Structure:*
+
+| Position | Function            | Value                                                       |
+|:--------:| ------------------- | ----------------------------------------------------------- |
+| 0        | CMD_BYTE            | 6                                                           |
+| 1        | Error Code          | 0 - Ok<br/>8 - Could not resolve into an IP address         |
+| 2 - 3    | Response Size       | 16 bits value (MSB LSB) indicating the size of the response |
+|          |                     | This part of response only exists if error code is 0        |
+| 4 - 7    | Resolved IP Address | IP Address                                                  |
+
+#### <a name="cudnsqnew"></a> TCPIP_DNS_Q_NEW
+
+This command make a host name resolution on the string received. **NOTE:** this is a blocking operation, even though UNAPI 1.1 and older requests it to not be. So the command itself will return only after DNS resolves an address or return an error. Recomendation is to have at least 15 seconds of time-out for this command to send a response.
+
+*Input Parameters:* 
+
+Host name or IP address to be resolved:
+
+| Position | Function                                        | Value                  |
+|:--------:| ----------------------------------------------- | ---------------------- |
+| 0        | Flags                                           | Byte                   |
+| 1 - X    | Host name or IP address, zero terminated string | Zero terminated string |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                                                              |
+|:--------:| ----------------- | -------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 206                                                                                                |
+| 1-2      | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters, including the zero terminator |
+
+*Response Structure:*
+
+| Position | Function            | Value                                                                                                                                                                               |
+|:--------:| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE            | 206                                                                                                                                                                                 |
+| 1        | Error Code          | 0 - Ok<br/>4 - Invalid parameter: invalid flag value, not enough input data<br/>6 - Flag indicated it was an IP address, but it wasn't<br/>8 - Could not resolve into an IP address |
+| 2 - 3    | Response Size       | 16 bits value (MSB LSB) indicating the size of the response                                                                                                                         |
+|          |                     | This part of response only exists if error code is 0                                                                                                                                |
+| 4 - 7    | Resolved IP Address | IP Address                                                                                                                                                                          |
+
+#### <a name="cudnss"></a> TCPIP_DNS_S
+
+**This command is not implemented**
+Driver must implement a compatibility for UNAPI 1.1 applications though, recommendation is to save the result of the last TCPIP_DNS_Q or TCPIP_DNS_Q_NEW call as well as the IP address resolved by it (if any).
+
+#### <a name="cuudpopen"></a> TCPIP_UDP_OPEN
+
+This command will open a new UDP connection.
+
+*Input Parameters:* 
+
+Connection parameters:
+
+| Position | Function            | Value                   |
+|:--------:| ------------------- | ----------------------- |
+| 0 - 1    | Local Port Number   | 16 bits value (LSB MSB) |
+| 2        | Connection Lifetime | 1 byte value            |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 8                                                                   |
+| 1 - 2    | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3 - X    | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function          | Value                                                                                                                                                                                                                                                   |
+|:--------:| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 8                                                                                                                                                                                                                                                       |
+| 1        | Error Code        | 0 - Ok<br/>2 - Not connected to the network<br/>4 - Invalid parameters: not enough input data or values out of range<br/>9 - No free connections available, close one and try again<br/>10 - Connection couldn't be created, probably it already exists |
+| 2 - 3    | Response Size     | 16 bits value (MSB LSB) indicating the size of the response                                                                                                                                                                                             |
+|          |                   | This part of response only exists if error code is 0                                                                                                                                                                                                    |
+| 4        | Connection Number | 1 byte value                                                                                                                                                                                                                                            |
+
+#### <a name="cuudpclose"></a> TCPIP_UDP_CLOSE
+
+This command will close an existing UDP connection or all transient UDP connections.
+
+*Input Parameters:* 
+
+Connection parameters:
+
+| Position | Function          | Value        |
+|:--------:| ----------------- | ------------ |
+| 0        | Connection Number | 1 byte value |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 9                                                                   |
+| 1 - 2    | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3 - X    | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function      | Value                                                                                                                                              |
+|:--------:| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE      | 9                                                                                                                                                  |
+| 1        | Error Code    | 0 - Ok<br/>4 - Invalid parameters: not enough input data or values out of range<br/>11 - Connection number is not open or is not an UDP connection |
+| 2 - 3    | Response Size | 16 bits value (MSB LSB) indicating the size of the response: always 0x0000                                                                         |
+
+#### <a name="cuudpstate"></a> TCPIP_UDP_STATE
+
+This command will get the state of an existing UDP connection.
+
+*Input Parameters:* 
+
+Connection parameters:
+
+| Position | Function          | Value        |
+|:--------:| ----------------- | ------------ |
+| 0        | Connection Number | 1 byte value |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 10                                                                  |
+| 1 - 2    | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3 - X    | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function                            | Value                                                                                                                       |
+|:--------:| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE                            | 10                                                                                                                          |
+| 1        | Error Code                          | 0 - Ok<br/>4 - Invalid parameters: not enough input data<br/>11 - Connection number is not open or is not an UDP connection |
+| 2 - 3    | Response Size                       | 16 bits value (MSB LSB) indicating the size of the response                                                                 |
+|          |                                     | This part of response only exists if error code is 0                                                                        |
+| 4 - 5    | Local Port Number                   | 16 bits value (LSB MSB)                                                                                                     |
+| 6        | Number of pending input datagrams   | 1 byte value                                                                                                                |
+| 7 - 8    | Size of the oldest pending datagram | 16 bits value (LSB MSB)                                                                                                     |
+
+#### <a name="cuudpsend"></a> TCPIP_UDP_SEND
+
+This command will send a datagram over an existing UDP connection.
+
+*Input Parameters:* 
+
+Connection parameters:
+
+| Position | Function               | Value                   |
+|:--------:| ---------------------- | ----------------------- |
+| 0        | Connection Number      | 1 byte value            |
+| 1 - 4    | Destination IP Address | 4 bytes                 |
+| 5 - 6    | Destination Port       | 16 bits value (LSB MSB) |
+| 7 - X    | Data to be sent        | (X-6) bytes of data     |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 11                                                                  |
+| 1 - 2    | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3 - X    | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function      | Value                                                                                                                                                            |
+|:--------:| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE      | 11                                                                                                                                                               |
+| 1        | Error Code    | 0 - Ok<br/>2 - Not connected to the network<br/>4 - Invalid parameters: not enough input data<br/>11 - Connection number is not open or is not an UDP connection |
+| 2 - 3    | Response Size | 16 bits value (MSB LSB) indicating the size of the response: always 0x0000                                                                                       |
+
+#### <a name="cuudprcv"></a> TCPIP_UDP_RCV
+
+This command will get the data received from a datagram on an existing UDP connection.
+
+*Input Parameters:* 
+
+Connection parameters:
+
+| Position | Function                      | Value                   |
+|:--------:| ----------------------------- | ----------------------- |
+| 0        | Connection Number             | 1 byte value            |
+| 1 - 2    | Maximum data size to retrieve | 16 bits value (LSB MSB) |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 12                                                                  |
+| 1 - 2    | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3 - X    | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function          | Value                                                                                                                                                             |
+|:--------:| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 12                                                                                                                                                                |
+| 1        | Error Code        | 0 - Ok<br/>3 - No data available to retrieve<br/>4 - Invalid parameters: not enough input data<br/>11 - Connection number is not open or is not an UDP connection |
+| 2 - 3    | Response Size     | 16 bits value (MSB LSB) indicating the size of the response                                                                                                       |
+|          |                   | This part of response only exists if error code is 0                                                                                                              |
+| 4 - 7    | Source IP Address | IP Address                                                                                                                                                        |
+| 8 - 9    | Source Port       | 16 bits value (LSB MSB)                                                                                                                                           |
+| 10 - X   | Received Data     | Data retrieved                                                                                                                                                    |
