@@ -51,6 +51,23 @@ Copyright (c) 2019 - 2021 Oduvaldo Pavan Junior ( ducasp@ gmail.com ) All rights
       11. [TCPIP_UDP_STATE](#cuudpstate)
       12. [TCPIP_UDP_SEND](#cuudpsend)
       13. [TCPIP_UDP_RCV](#cuudprcv)
+      14. [TCPIP_TCP_OPEN](#cutcpopen)
+      15. [TCPIP_TCP_CLOSE](#cutcpclose)
+      16. [TCPIP_TCP_ABORT](#cutcpabort)
+      17. [TCPIP_TCP_STATE](#cutcpstate)
+      18. [TCPIP_TCP_SEND](#cutcpsend)
+      19. [TCPIP_TCP_RCV](#cutcprcv)
+      20. [TCPIP_TCP_DISCARD or TCPIP_TCP_FLUSH](#cutcpdiscard)
+      21. [TCPIP_RAW_OPEN](#curawopen)
+      22. [TCPIP_RAW_CLOSE](#curawclose)
+      23. [TCPIP_RAW_STATE](#curawstate)
+      24. [TCPIP_RAW_SEND](#curawsend)
+      25. [TCPIP_RAW_RCV](#curawrcv)
+      26. [TCPIP_CONFIG_AUTOIP](#cucfgautoip)
+      27. [TCPIP_CONFIG_IP](#cucfgip)
+      28. [TCPIP_CONFIG_TTL](#cucfgttl)
+      29. [TCPIP_CONFIG_PING](#cucfgping)
+      30. [TCPIP_WAIT](#cuwait)
 
 ## <a name="goals"></a> Introduction / Design Choices - Goals
 
@@ -1100,3 +1117,298 @@ Connection parameters:
 | 4 - 7    | Source IP Address | IP Address                                                                                                                                                        |
 | 8 - 9    | Source Port       | 16 bits value (LSB MSB)                                                                                                                                           |
 | 10 - X   | Received Data     | Data retrieved                                                                                                                                                    |
+
+#### <a name="cutcpopen"></a> TCPIP_TCP_OPEN
+
+This command will open a new TCP connection.
+
+*Input Parameters:* 
+
+Connection parameters:
+
+| Position | Function                                        | Value                        |
+|:--------:| ----------------------------------------------- | ---------------------------- |
+| 0 - 3    | Remote IP                                       | IP Address                   |
+| 4 - 5    | Remote Port Number                              | 16 bits value (LSB MSB)      |
+| 6 - 7    | Local Port Number                               | 16 bits value (LSB MSB)      |
+| 8        | Connection Flags                                | 1 byte value                 |
+|          |                                                 | Optional for SSL Connections |
+| 9 - X    | Server host name for SSL certificate validation | NULL (0) terminated string   |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 13                                                                  |
+| 1 - 2    | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3 - X    | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure when Error Code = 11:*
+
+| Position | Function      | Value                                                                      |
+|:--------:| ------------- | -------------------------------------------------------------------------- |
+| 0        | CMD_BYTE      | 13                                                                         |
+| 1        | Error Code    | 11 - Connection failed                                                     |
+| 2 - 3    | Response Size | 16 bits value (MSB LSB) indicating the size of the response: always 0x0001 |
+| 4        | Close Reason  | 1 byte value                                                               |
+
+*Response Structure for other error code values:*
+
+| Position | Function          | Value                                                                                                                                                                                                                                                                                |
+|:--------:| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0        | CMD_BYTE          | 13                                                                                                                                                                                                                                                                                   |
+| 1        | Error Code        | 0 - Ok<br/>2 - Not connected to the network<br/>4 - Invalid parameters: not enough input data or values out of range or invalid flags combination<br/>9 - No free connections available, close one and try again<br/>10 - Connection couldn't be created, probably it already exists |
+| 2 - 3    | Response Size     | 16 bits value (MSB LSB) indicating the size of the response                                                                                                                                                                                                                          |
+|          |                   | This part of response only exists if error code is 0                                                                                                                                                                                                                                 |
+| 4        | Connection Number | 1 byte value                                                                                                                                                                                                                                                                         |
+
+#### <a name="cutcpclose"></a> TCPIP_TCP_CLOSE
+
+This command will close an existing TCP connection or all transient TCP connections.
+
+*Input Parameters:* 
+
+Connection parameters:
+
+| Position | Function          | Value        |
+|:--------:| ----------------- | ------------ |
+| 0        | Connection Number | 1 byte value |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 14                                                                  |
+| 1 - 2    | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3 - X    | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function      | Value                                                                                                                                             |
+|:--------:| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE      | 14                                                                                                                                                |
+| 1        | Error Code    | 0 - Ok<br/>4 - Invalid parameters: not enough input data or values out of range<br/>11 - Connection number is not open or is not a TCP connection |
+| 2 - 3    | Response Size | 16 bits value (MSB LSB) indicating the size of the response: always 0x0000                                                                        |
+
+#### <a name="cutcpabort"></a> TCPIP_TCP_ABORT
+
+This command will abort an existing TCP connection or all transient TCP connections. **NOTE:** for this implementation, there is no difference between ABORT and CLOSE.
+
+*Input Parameters:* 
+
+Connection parameters:
+
+| Position | Function          | Value        |
+|:--------:| ----------------- | ------------ |
+| 0        | Connection Number | 1 byte value |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 15                                                                  |
+| 1 - 2    | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3 - X    | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function      | Value                                                                                                                                             |
+|:--------:| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE      | 15                                                                                                                                                |
+| 1        | Error Code    | 0 - Ok<br/>4 - Invalid parameters: not enough input data or values out of range<br/>11 - Connection number is not open or is not a TCP connection |
+| 2 - 3    | Response Size | 16 bits value (MSB LSB) indicating the size of the response: always 0x0000                                                                        |
+
+#### <a name="cutcpstate"></a> TCPIP_TCP_STATE
+
+This command will get the state of an existing TCP connection.
+
+*Input Parameters:* 
+
+Connection parameters:
+
+| Position | Function          | Value        |
+|:--------:| ----------------- | ------------ |
+| 0        | Connection Number | 1 byte value |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 16                                                                  |
+| 1 - 2    | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3 - X    | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function                                   | Value                                                                                                                      |
+|:--------:| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE                                   | 16                                                                                                                         |
+| 1        | Error Code                                 | 0 - Ok<br/>4 - Invalid parameters: not enough input data<br/>11 - Connection number is not open or is not a TCP connection |
+| 2 - 3    | Response Size                              | 16 bits value (MSB LSB) indicating the size of the response                                                                |
+|          |                                            | This part of response only exists if error code is 0                                                                       |
+| 4        | Connection flags or Close reason           | 1 byte value                                                                                                               |
+| 5        | Connection state                           | 1 byte value                                                                                                               |
+| 6 - 7    | Total available incoming bytes             | 16 bits value (LSB MSB)                                                                                                    |
+| 8 - 9    | Total available urgent bytes               | 16 bits value (LSB MSB)                                                                                                    |
+| 10 - 11  | Total available space in the output buffer | 16 bits value (LSB MSB)                                                                                                    |
+| 12 - 19  | Information block                          | 8 bytes to be stored on the information block                                                                              |
+
+#### <a name="cutcpsend"></a> TCPIP_TCP_SEND
+
+This command will send data over an existing TCP connection.
+
+*Input Parameters:* 
+
+Connection parameters:
+
+| Position | Function          | Value               |
+|:--------:| ----------------- | ------------------- |
+| 0        | Connection Number | 1 byte value        |
+| 1        | Connection Flags  | 1 byte value        |
+| 2 - X    | Data to be sent   | (X-1) bytes of data |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 17                                                                  |
+| 1 - 2    | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3 - X    | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function      | Value                                                                                                                                                            |
+|:--------:| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE      | 17                                                                                                                                                               |
+| 1        | Error Code    | 0 - Ok<br/>2 - Not connected to the network<br/>4 - Invalid parameters: not enough input data<br/>11 - Connection number is not open or is not an TCP connection |
+| 2 - 3    | Response Size | 16 bits value (MSB LSB) indicating the size of the response: always 0x0000                                                                                       |
+
+#### <a name="cutcprcv"></a> TCPIP_TCP_RCV
+
+This command will get the data received from an existing TCP connection.
+
+*Input Parameters:* 
+
+Connection parameters:
+
+| Position | Function                      | Value                   |
+|:--------:| ----------------------------- | ----------------------- |
+| 0        | Connection Number             | 1 byte value            |
+| 1 - 2    | Maximum data size to retrieve | 16 bits value (LSB MSB) |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 18                                                                  |
+| 1 - 2    | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3 - X    | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function              | Value                                                                                                                       |
+|:--------:| --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 0        | CMD_BYTE              | 18                                                                                                                          |
+| 1        | Error Code            | 0 - Ok<br/>4 - Invalid parameters: not enough input data<br/>11 - Connection number is not open or is not an TCP connection |
+| 2 - 3    | Response Size         | 16 bits value (MSB LSB) indicating the size of the response                                                                 |
+|          |                       | This part of response only exists if error code is 0                                                                        |
+| 4 - 5    | Urgent Bytes Recieved | 16 bits value (LSB MSB), this implementation do not support urgent bytes so it is always 0                                  |
+| 6 - X    | Received Data         | Data retrieved                                                                                                              |
+
+#### <a name="cutcpdiscard"></a> TCPIP_TCP_DISCARD or TCPIP_TCP_FLUSH
+
+**This command is not implemented**
+
+#### <a name="curawopen"></a> TCPIP_RAW_OPEN
+
+**This command is not implemented**
+
+#### <a name="curawclose"></a> TCPIP_RAW_CLOSE
+
+**This command is not implemented**
+
+#### <a name="curawstate"></a> TCPIP_RAW_STATE
+
+**This command is not implemented**
+
+#### <a name="curawsend"></a> TCPIP_RAW_SEND
+
+**This command is not implemented**
+
+#### <a name="curawrcv"></a> TCPIP_RAW_RCV
+
+**This command is not implemented**
+
+#### <a name="cucfgautoip"></a> TCPIP_CONFIG_AUTOIP
+
+This command will allow to check or set the automatic IP retrieval options.
+
+*Input Parameters:* 
+
+Connection parameters:
+
+| Position | Function             | Value        |
+|:--------:| -------------------- | ------------ |
+| 0        | Action to perform    | 1 byte value |
+| 1        | Configuration to set | 1 byte value |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 25                                                                  |
+| 1 - 2    | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3 - X    | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function                              | Value                                                                      |
+|:--------:| ------------------------------------- | -------------------------------------------------------------------------- |
+| 0        | CMD_BYTE                              | 25                                                                         |
+| 1        | Error Code                            | 0 - Ok<br/>4 - Invalid parameters: not enough input data or invalid values |
+| 2 - 3    | Response Size                         | 16 bits value (MSB LSB) indicating the size of the response                |
+|          |                                       | This part of response only exists if error code is 0                       |
+| 4        | Configuration after command execution | 1 byte value                                                               |
+
+#### <a name="cucfgip"></a> TCPIP_CONFIG_IP
+
+This command will configure manually a given IP address.
+
+*Input Parameters:* 
+
+Connection parameters:
+
+| Position | Function                   | Value        |
+|:--------:| -------------------------- | ------------ |
+| 0        | Index of IP address to set | 1 byte value |
+| 1 - 4    | IP value                   | IP Address   |
+
+*Command Structure:*
+
+| Position | Function          | Value                                                               |
+|:--------:| ----------------- | ------------------------------------------------------------------- |
+| 0        | CMD_BYTE          | 26                                                                  |
+| 1 - 2    | INPUT_PARAMS_SIZE | 16 bits value (MSB LSB) indicating the size of the input parameters |
+| 3 - X    | INPUT_PARAMS      | Input parameters                                                    |
+
+*Response Structure:*
+
+| Position | Function      | Value                                                                      |
+|:--------:| ------------- | -------------------------------------------------------------------------- |
+| 0        | CMD_BYTE      | 26                                                                         |
+| 1        | Error Code    | 0 - Ok<br/>4 - Invalid parameters: not enough input data or invalid values |
+| 2 - 3    | Response Size | 16 bits value (MSB LSB) indicating the size of the response: always 0x0000 |
+
+#### <a name="cucfgttl"></a> TCPIP_CONFIG_TTL
+
+**This command is not implemented**
+
+#### <a name="cucfgping"></a> TCPIP_CONFIG_PING
+
+**This command is not implemented**
+
+#### <a name="cuwait"></a> TCPIP_WAIT
+
+**This command is not implemented**
+
+
