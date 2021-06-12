@@ -9,6 +9,9 @@ https://github.com/ducasp/MSX-Development/tree/master/MSX-SM/WiFi/UNAPI_BIOS_CUS
 (RAM Version, requires Memory Mapper and RAMHELPR by Konamiman)
 https://github.com/ducasp/MSX-Development/tree/master/MSX-SM/WiFi/UNAPI_DRIVER_CUSTOM_ESP_FIRMWARE
 
+This application is an example of how to set configurations, scan and join networks or update firmware or certificates:
+https://github.com/ducasp/MSX-Development/tree/master/MSX-SM/WiFi/CFG8266
+
 Project Design Constraints:
 
 This firmware was designed taking into consideration that the other end connected to it either has
