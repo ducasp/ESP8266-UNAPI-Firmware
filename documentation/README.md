@@ -2,6 +2,8 @@
 
 Copyright (c) 2019 - 2021 Oduvaldo Pavan Junior ( ducasp@ gmail.com ) All rights reserved.
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/R6R2BRGX6)
+
 ## Table of Contents
 
 1. [Introduction / Design Choices - Goals](#goals)
