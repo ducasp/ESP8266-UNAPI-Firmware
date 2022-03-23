@@ -1,5 +1,7 @@
 # ESP8266 UNAPI Firmware
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/R6R2BRGX6)
+
 Two sample TCP IP UNAPI drivers that work along with this firmware
 are available at:
 
