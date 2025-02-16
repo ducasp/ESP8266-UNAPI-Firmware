@@ -1,6 +1,6 @@
 # ESP8266 UNAPI Firmware Documentation
 
-Copyright (c) 2019 - 2021 Oduvaldo Pavan Junior ( ducasp@ gmail.com ) All rights reserved.
+Copyright (c) 2019 - 2025 Oduvaldo Pavan Junior ( ducasp@ gmail.com ) All rights reserved.
 
 ## Table of Contents
 
@@ -19,9 +19,9 @@ Copyright (c) 2019 - 2021 Oduvaldo Pavan Junior ( ducasp@ gmail.com ) All rights
       6. [Scan Available Access Points](#cscans)
       7. [Scan Available Access Points Results](#cscanr)
       8. [Connect to Access Point](#cconnectap)
-      9. [Get Access Point Status](#cgetapsts) 
+      9. [Get Access Point Status](#cgetapsts)
       10. [Update Firmware Over the Air](#cotafwupdt)
-      11. [Update Certificates Over the Air](#cotacertupdt)      
+      11. [Update Certificates Over the Air](#cotacertupdt)
       12. [Start Local Firmware Update](#clocalfwupdt)
       13. [Start Local Certificate Update](#clocalcertupdt)
       14. [Write Block](#clocalwriteblock)
@@ -34,9 +34,12 @@ Copyright (c) 2019 - 2021 Oduvaldo Pavan Junior ( ducasp@ gmail.com ) All rights
       21. [Get Settings](#cgetset)
       22. [Get Auto Clock Settings](#cgetaclkset)
       23. [Set Auto Clock Settings](#csetaclkset)
-      24. [Get Date and Time](#cgetdate)      
+      24. [Get Date and Time](#cgetdate)
       25. [Hold Connection](#choldconn)
       26. [Release Connection](#creleaseconn)
+      27. [Turn Wi-Fi Off](#cturnwifioff)
+      28. [Turn RS232 Off](#cturnrs232off)
+      29. [Clear AP from memory](#cclearap)
    2. [UNAPI Commands](#ucommands)
       1. [TCPIP_GET_CAPAB](#cugetcapab)
       2. [TCPIP_GET_IPINFO](#cugetipinfo)
@@ -765,6 +768,63 @@ This command requests that the radio connection hold is released, re-enabling ti
 | 0        | CMD_BYTE   | 'h'           |
 | 1        | Error Code | 0 - always Ok |
 
+#### <a name="cturnwifioff"></a> Turn Wi-Fi Off
+
+This command requests that Wi-Fi is fully disabled.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:| -------- | ----- |
+| 0        | CMD_BYTE | 'O'   |
+
+*Response Structure:*
+
+| Position | Function   | Value         |
+|:--------:| ---------- | ------------- |
+| 0        | CMD_BYTE   | 'O'           |
+| 1        | Error Code | 0 - always Ok |
+
+#### <a name="cturnrs232off"></a> Turn RS232 Off
+
+This command requests that RS232 is fully disabled. Since no commands will be received anymore, the only way to revert from this is power-cycling the device or a physical reset.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:| -------- | ----- |
+| 0        | CMD_BYTE | 'o'   |
+
+*Response Structure:*
+
+| Position | Function   | Value         |
+|:--------:| ---------- | ------------- |
+| 0        | CMD_BYTE   | 'o'           |
+| 1        | Error Code | 0 - always Ok |
+
+#### <a name="cclearap"></a> Clear AP from memory
+
+This command requests that the current AP is forgotten. Wi-Fi connection, if any, will be lost.
+
+*Input Parameters:* none
+
+*Command Structure:*
+
+| Position | Function | Value |
+|:--------:| -------- | ----- |
+| 0        | CMD_BYTE | 'a'   |
+
+*Response Structure:*
+
+| Position | Function   | Value         |
+|:--------:| ---------- | ------------- |
+| 0        | CMD_BYTE   | 'a'           |
+| 1        | Error Code | 0 - always Ok |
+
 ### <a name="ucommands"></a> UNAPI Commands
 
 The intent of this document is not to explain each command functionality. It is only to tell how the input parameters from UNAPI Commands should be ordered and how the output result will be ordered on the command response. For more details on how each UNAPI command work read the [MSX-UNAPI-specification/TCP-IP UNAPI specification](https://github.com/Konamiman/MSX-UNAPI-specification/blob/master/docs/TCP-IP%20UNAPI%20specification.md).
@@ -909,7 +969,8 @@ Host name or IP address to be resolved:
 
 | Position | Function                                        | Value                  |
 |:--------:| ----------------------------------------------- | ---------------------- |
-| 0 - X    | Host name or IP address, zero terminated string | Zero terminated string |
+| 0        | Flags                                           | Byte                   |
+| 1 - X    | Host name or IP address, zero terminated string | Zero terminated string |
 
 *Command Structure:*
 
