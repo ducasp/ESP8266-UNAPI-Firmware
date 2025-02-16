@@ -2,6 +2,7 @@
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/R6R2BRGX6)
 
+
 Two sample TCP IP UNAPI drivers that work along with this firmware
 are available at:
 
@@ -50,7 +51,7 @@ This firmware was designed taking into consideration that the other end connecte
 a large 2KB reception buffer OR is fast enough to pick-up data at the desired baud rate without the
 help of such large buffer.
 
-Copyright (c) 2019 - 2021 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
+Copyright (c) 2019 - 2025 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
 All rights reserved.
 
 If you integrate this on your hardware, please consider the possibility of sending one piece of it

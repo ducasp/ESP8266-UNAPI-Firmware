@@ -1,8 +1,8 @@
 # ESP8266 UNAPI Firmware Documentation
 
-Copyright (c) 2019 - 2025 Oduvaldo Pavan Junior ( ducasp@ gmail.com ) All rights reserved.
-
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/R6R2BRGX6)
+
+Copyright (c) 2019 - 2025 Oduvaldo Pavan Junior ( ducasp@ gmail.com ) All rights reserved.
 
 ## Table of Contents
 
