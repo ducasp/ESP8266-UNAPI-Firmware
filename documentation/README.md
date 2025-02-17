@@ -971,8 +971,7 @@ Host name or IP address to be resolved:
 
 | Position | Function                                        | Value                  |
 |:--------:| ----------------------------------------------- | ---------------------- |
-| 0        | Flags                                           | Byte                   |
-| 1 - X    | Host name or IP address, zero terminated string | Zero terminated string |
+| 0 - X    | Host name or IP address, zero terminated string | Zero terminated string |
 
 *Command Structure:*
 

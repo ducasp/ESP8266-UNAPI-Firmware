@@ -1,11 +1,11 @@
 /*
 UNAPI8266.h
     ESP8266 UNAPI Implementation.
-    Revision 1.20
+    Revision 1.30
 
 Requires Arduino IDE and ESP8266 libraries
 
-Copyright (c) 2019 - 2021 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
+Copyright (c) 2019 - 2025 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
 All rights reserved.
 
 If you integrate this on your hardware, please consider the 
@@ -72,6 +72,7 @@ enum CustomFunctions {
   CUSTOM_F_SCAN = 'S',
   CUSTOM_F_SCAN_R = 's',
   CUSTOM_F_CONNECT_AP = 'A',
+  CUSTOM_F_CLEAR_AP = 'a',
   CUSTOM_F_UPDATE_FW = 'U',
   CUSTOM_F_UPDATE_CERTS = 'u',
   CUSTOM_F_GET_VER = 'V',
@@ -84,6 +85,7 @@ enum CustomFunctions {
   CUSTOM_F_INITCERTS = 'I',
   CUSTOM_F_WIFI_ON_TIMER_SET = 'T',
   CUSTOM_F_TURN_WIFI_OFF = 'O',
+  CUSTOM_F_TURN_RS232_OFF = 'o',
   CUSTOM_F_QUERY_SETTINGS = 'Q',
   CUSTOM_F_QUERY_AUTOCLOCK = 'c',
   CUSTOM_F_SET_AUTOCLOCK = 'C',

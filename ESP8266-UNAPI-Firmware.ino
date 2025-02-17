@@ -1,11 +1,11 @@
 /*
 ESP8266-UNAPI-Firmware.ino
     ESP8266 UNAPI Implementation.
-    Revision 1.20
+    Revision 1.3
 
 Requires Arduino IDE and ESP8266 libraries
 
-Copyright (c) 2019 - 2021 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
+Copyright (c) 2019 - 2025 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
 All rights reserved.
 
 If you integrate this on your hardware, please consider the 
@@ -39,6 +39,7 @@ along with this file.  If not, see <https://www.gnu.org/licenses/>
 #include <CertStoreBearSSL.h>
 #include <time.h>
 #include <FS.h>
+#include <LittleFS.h>
 #endif
 #include "Ticker.h"
 
@@ -59,7 +60,7 @@ unsigned char uchTLSHost[256];
 bool bHasHostName = false;
 #endif
 
-const char chVer[4] = "1.2";
+const char chVer[4] = "1.3";
 byte btConnections[4] = {CONN_CLOSED,CONN_CLOSED,CONN_CLOSED,CONN_CLOSED};
 //UDP Objects
 WiFiUDP Udp1;
@@ -216,7 +217,7 @@ void ScheduleTimeoutCheck() {
 }
 
 void setup() {
-  SPIFFS.begin();
+  LittleFS.begin();
   EEPROM.begin(32);
 #ifdef  Zanoto_Cartridge
   Serial.begin(115200);
@@ -231,7 +232,7 @@ void setup() {
   Serial.print("TCP-IP UNAPI ESP8266 v");
 #endif  
   Serial.println(chVer);
-  Serial.println("(c) 2020 Oduvaldo Pavan Junior - ducasp@gmail.com");
+  Serial.println("(c) 2019-2025 Oduvaldo Pavan Junior - ducasp@gmail.com");
   validateConfigFile();
   longReadyTimeOut = 0;
   btReadyRetries = 3;
@@ -320,7 +321,7 @@ bool InitCertificates() {
   setClock(); // Required for X.509 validation
   const char chIndex[] = "/certs.idx";
   const char chCerts[] = "/certs.ar";
-  certStore.initCertStore(SPIFFS, (const char*)chIndex, (const char*)chCerts, false);  
+  certStore.initCertStore(LittleFS, (const char*)chIndex, (const char*)chCerts, false);  
 
   return true;
 }
@@ -911,6 +912,17 @@ void received_data_parser ()
             bSkipStateCheck = false;
             SendQuickResponse(btCommand,UNAPI_ERR_OK);
           break;
+          case CUSTOM_F_TURN_RS232_OFF:
+            // Note: it won't be possible to restore communications, only through power cycle or physical reset
+            SendQuickResponse(btCommand,UNAPI_ERR_OK);
+            Serial.end();
+            break;
+          case CUSTOM_F_CLEAR_AP:
+            WiFi.disconnect();
+            yield();
+            WiFi.begin("XXXXXXXXXX","YYYYYYYYZZZZZZ");
+            SendQuickResponse(btCommand,UNAPI_ERR_OK);
+            break;
           case CUSTOM_F_NO_DELAY:
             stDeviceConfiguration.ucNagle = 0;
             saveFileConfig();
@@ -1561,7 +1573,12 @@ proccesscmd:
                 else
                 {                  
                   if(WiFi.hostByName((const char*)&btCommandData[1],DNSQueryIP))
-                    SendResponse(btCommand,UNAPI_ERR_OK,4,&DNSQueryIP[0]);
+                  {
+                    if (DNSQueryIP == (uint32_t)0x00000000 || DNSQueryIP == (uint32_t)0xffffffff)
+                      SendResponse(btCommand,UNAPI_ERR_DNS,0,0);
+                    else
+                      SendResponse(btCommand,UNAPI_ERR_OK,4,&DNSQueryIP[0]);
+                  }
                   else
                     SendResponse(btCommand,UNAPI_ERR_DNS,0,0);
                 }
@@ -1578,7 +1595,12 @@ proccesscmd:
             btCommandData[uiCmdDataLen]=0; //zero terminate the DNS strings
             WaitConnectionIfNeeded();
             if(WiFi.hostByName((const char*)btCommandData,DNSQueryIP))
-              SendResponse(btCommand,UNAPI_ERR_OK,4,&DNSQueryIP[0]);
+            {
+              if (DNSQueryIP == (uint32_t)0x00000000 || DNSQueryIP == (uint32_t)0xffffffff)
+                SendResponse(btCommand,UNAPI_ERR_DNS,0,0);
+              else
+                SendResponse(btCommand,UNAPI_ERR_OK,4,&DNSQueryIP[0]);
+            }
             else
               SendResponse(btCommand,UNAPI_ERR_DNS,0,0);
           }
