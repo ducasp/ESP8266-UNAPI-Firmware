@@ -17,13 +17,13 @@ https://github.com/ducasp/MSX-Development/tree/master/MSX-SM/WiFi/CFG8266
 
 # How to build it
 
-You will need Arduino IDE and install ESP8266 Arduino IDE version 2.7.1. After installing it, you
-will need to apply some customizations I've made for it, those are available at:
+You will need Arduino IDE and install ESP8266 Arduino IDE version 2.1.7 or 3.1.2 (recommended). After installing it,
+you will need to apply some customizations I've made for it, those are available at:
 
 https://github.com/ducasp/ArduinoIDE_ESP8266_Customizations
 
 On Tools menu, choose the "Generic ESP8266 Moudle" board, set the built-in led to the correct GPIO
-port of your ESP implementation. Make sure to set CPU frequency to 160 MHz, otherwise BearSSL will
+port of your ESP implementation (usually 0). Make sure to set CPU frequency to 160 MHz, otherwise BearSSL will
 not have its best performance and also certificates indexation that takes place after new
 certificates are installed will take much longer.
 
