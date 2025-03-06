@@ -1,7 +1,7 @@
 /*
 UNAPI8266.h
     ESP8266 UNAPI Implementation.
-    Revision 1.30
+    Revision 1.40
 
 Requires Arduino IDE and ESP8266 libraries
 

@@ -1,7 +1,7 @@
 /*
 ESP8266-UNAPI-Firmware.ino
     ESP8266 UNAPI Implementation.
-    Revision 1.3
+    Revision 1.4
 
 Requires Arduino IDE and ESP8266 libraries
 
@@ -60,7 +60,7 @@ unsigned char uchTLSHost[256];
 bool bHasHostName = false;
 #endif
 
-const char chVer[4] = "1.3";
+const char chVer[4] = "1.4";
 byte btConnections[4] = {CONN_CLOSED,CONN_CLOSED,CONN_CLOSED,CONN_CLOSED};
 //UDP Objects
 WiFiUDP Udp1;
@@ -217,6 +217,7 @@ void ScheduleTimeoutCheck() {
 }
 
 void setup() {
+  WiFi.persistent(true);
   LittleFS.begin();
   EEPROM.begin(32);
 #ifdef  Zanoto_Cartridge
