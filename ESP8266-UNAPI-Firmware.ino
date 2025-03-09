@@ -1,11 +1,15 @@
 /*
 ESP8266-UNAPI-Firmware.ino
     ESP8266 UNAPI Implementation.
-    Revision 1.4
+    Revision 1.5
 
 Requires Arduino IDE and ESP8266 libraries
 
 Copyright (c) 2019 - 2025 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
+All rights reserved.
+
+HTTP functionality
+Copyright (c) 2025 Jeroen Taverne
 All rights reserved.
 
 If you integrate this on your hardware, please consider the 
@@ -42,6 +46,9 @@ along with this file.  If not, see <https://www.gnu.org/licenses/>
 #include <LittleFS.h>
 #endif
 #include "Ticker.h"
+#include <ESP8266HTTPClient.h>
+
+#define HTTP_PACKET_SIZE 2048
 
 //#define Zanoto_Cartridge
 
@@ -60,7 +67,7 @@ unsigned char uchTLSHost[256];
 bool bHasHostName = false;
 #endif
 
-const char chVer[4] = "1.4";
+const char chVer[4] = "1.5";
 byte btConnections[4] = {CONN_CLOSED,CONN_CLOSED,CONN_CLOSED,CONN_CLOSED};
 //UDP Objects
 WiFiUDP Udp1;
@@ -106,6 +113,106 @@ bool bHoldConnection = false;
 time_t now;
 bool bSkipStateCheck = false;
 station_config myConfig;
+
+void WaitConnectionIfNeeded(bool bFastReturn);
+
+static bool http_connected = false;
+static HTTPClient http;
+static WiFiClient client;
+static WiFiClient *stream = NULL;
+static unsigned int http_chunk_size = 0;
+static unsigned int http_chunk_header_idx = 0;
+static unsigned long longTimeOut2;
+
+static byte http_open(const char *url) {
+  http_close();
+
+  WaitConnectionIfNeeded(false);
+
+  if (WiFi.status() != WL_CONNECTED) {
+    return http_close(UNAPI_ERR_NO_NETWORK);
+  }
+
+  if (!http.begin(client, url)) {
+    return http_close(UNAPI_ERR_NO_CONN);
+  }
+
+  if (http.GET() != HTTP_CODE_OK) {
+    return http_close(UNAPI_ERR_NO_DATA);
+  }
+
+  http_connected = true;
+  stream = http.getStreamPtr();
+  http_chunk_size = 0;
+  http_chunk_header_idx = 0;
+
+  return UNAPI_ERR_OK;
+}
+
+static byte http_receive(byte *btCommandData, unsigned int *uiCmdDataLen, bool read_text) {
+  static char http_chunk_header[8];
+  unsigned int idx = 0;
+
+  while (1) {
+    if (WiFi.status() != WL_CONNECTED) {
+      *uiCmdDataLen = idx;
+      return http_close(UNAPI_ERR_NO_NETWORK);
+    }
+
+    if (!http.connected() || !http_connected) {
+      *uiCmdDataLen = idx;
+      return http_close(UNAPI_ERR_NO_CONN);
+    }
+
+    unsigned int available = stream->available();
+    while (available--) {
+      uint8_t data = stream->read();
+      if (http_chunk_size > 0) {
+        http_chunk_size--;
+        if (read_text && data == 10) {
+          btCommandData[idx++] = 0;
+          *uiCmdDataLen = idx;
+          return UNAPI_ERR_OK;
+        }
+        btCommandData[idx++] = data;
+        if (idx == HTTP_PACKET_SIZE) {
+          *uiCmdDataLen = idx;
+          return UNAPI_ERR_OK;
+        }
+      } else {
+        if (http_chunk_header_idx > 0 && data == 10) {
+          http_chunk_header[http_chunk_header_idx] = 0;
+          sscanf(http_chunk_header, "%x", &http_chunk_size);
+          http_chunk_header_idx = 0;
+          if (http_chunk_size == 0) {
+            *uiCmdDataLen = idx;
+            if (idx > 0) {
+              return UNAPI_ERR_OK;
+            } else {
+              return http_close(UNAPI_ERR_NO_DATA);
+            }
+          }
+        } else {
+          if (data > 32) {
+            if (http_chunk_header_idx < sizeof(http_chunk_header)) {
+              http_chunk_header[http_chunk_header_idx++] = data;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+static void http_close(void) {
+  http_connected = false;
+  http.end();
+}
+
+static uint8_t http_close(uint8_t err) {
+  http_close();
+  return err;
+}
 
 void getConfig()
 {
@@ -240,6 +347,11 @@ void setup() {
   btReceivedCommand = false;
   //Serial.println(ESP.getFullVersion().c_str());  
   WiFi.setSleepMode(WIFI_NONE_SLEEP,0);
+
+  // "Fix" some weird diconnection issues on MSX Pico, default is 20.5dBm
+  WiFi.setOutputPower(15.0);
+
+  WiFi.persistent(true);
   WiFi.begin();  
   if (stDeviceConfiguration.ucAutoClock!=3)
   {
@@ -935,6 +1047,9 @@ void received_data_parser ()
             SendQuickResponse(btCommand,UNAPI_ERR_OK);
           break;
 
+          case TCPIP_HTTP_OPEN:
+          case TCPIP_HTTP_RECEIVE:
+          case TCPIP_HTTP_CLOSE:
           case TCPIP_GET_CAPAB:
           case TCPIP_GET_IPINFO:
           case TCPIP_NET_STATE:
@@ -2183,7 +2298,35 @@ proccesscmd:
             }
           }
         break;        
-          
+
+        case TCPIP_HTTP_OPEN:
+          if (uiCmdDataLen > 0) {
+            btCommandData[uiCmdDataLen] = 0;
+            SendResponse(btCommand, http_open((const char *)btCommandData), 0, 0);
+          } else {
+            SendResponse(btCommand, UNAPI_ERR_INV_PARAM, 0, 0);
+          }
+          break;
+
+        case TCPIP_HTTP_RECEIVE:
+        {
+          if (uiCmdDataLen == 1) {
+            byte result = http_receive(btCommandData, &uiCmdDataLen, (btCommandData[0] > 0));
+            SendResponse(btCommand, result, uiCmdDataLen, btCommandData);
+          } else {
+            SendResponse(btCommand, UNAPI_ERR_INV_PARAM, 0, 0);
+          }
+        }
+          break;
+
+        case TCPIP_HTTP_CLOSE:
+          if (uiCmdDataLen == 0) {
+            SendResponse(btCommand, http_close(UNAPI_ERR_OK), 0, 0);
+          } else {
+            SendResponse(btCommand, UNAPI_ERR_INV_PARAM, 0, 0);
+          }
+          break;
+
         default:
           SendResponse(btCommand,UNAPI_ERR_NOT_IMP,0,0);
         break;

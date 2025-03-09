@@ -1,11 +1,15 @@
 /*
 UNAPI8266.h
     ESP8266 UNAPI Implementation.
-    Revision 1.40
+    Revision 1.50
 
 Requires Arduino IDE and ESP8266 libraries
 
 Copyright (c) 2019 - 2025 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
+All rights reserved.
+
+HTTP functionality
+Copyright (c) 2025 Jeroen Taverne
 All rights reserved.
 
 If you integrate this on your hardware, please consider the 
@@ -98,25 +102,25 @@ enum CustomFunctions {
 };
 
 enum TcpipUnapiFunctions {  
-    TCPIP_GET_CAPAB = 1,
-    TCPIP_GET_IPINFO = 2,
-    TCPIP_NET_STATE = 3,
+  TCPIP_GET_CAPAB = 1,
+  TCPIP_GET_IPINFO = 2,
+  TCPIP_NET_STATE = 3,
 	TCPIP_SEND_ECHO = 4,
 	TCPIP_RCV_ECHO = 5,
 	TCPIP_DNS_Q = 6,
   TCPIP_DNS_Q_NEW = 206,
 	TCPIP_DNS_S = 7,
 	TCPIP_UDP_OPEN = 8,
-    TCPIP_UDP_CLOSE = 9,
+  TCPIP_UDP_CLOSE = 9,
 	TCPIP_UDP_STATE = 10,
-    TCPIP_UDP_SEND = 11,
+  TCPIP_UDP_SEND = 11,
 	TCPIP_UDP_RCV = 12,
-    TCPIP_TCP_OPEN = 13,
-    TCPIP_TCP_CLOSE = 14,
-    TCPIP_TCP_ABORT = 15,
-    TCPIP_TCP_STATE = 16,
-    TCPIP_TCP_SEND = 17,
-    TCPIP_TCP_RCV = 18,
+  TCPIP_TCP_OPEN = 13,
+  TCPIP_TCP_CLOSE = 14,
+  TCPIP_TCP_ABORT = 15,
+  TCPIP_TCP_STATE = 16,
+  TCPIP_TCP_SEND = 17,
+  TCPIP_TCP_RCV = 18,
 	TCPIP_TCP_FLUSH = 19,
 	TCPIP_RAW_OPEN = 20,
 	TCPIP_RAW_CLOSE = 21,
@@ -127,7 +131,10 @@ enum TcpipUnapiFunctions {
 	TCPIP_CONFIG_IP = 26,
 	TCPIP_CONFIG_TTL = 27,
 	TCPIP_CONFIG_PING = 28,
-    TCPIP_WAIT = 29
+  TCPIP_WAIT = 29,
+  TCPIP_HTTP_OPEN = 200,
+  TCPIP_HTTP_RECEIVE = 201,
+  TCPIP_HTTP_CLOSE = 202
 };
 
 enum TcpipUnapiGetCapabParam1
