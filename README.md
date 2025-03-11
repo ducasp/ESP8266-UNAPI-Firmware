@@ -45,6 +45,23 @@ where the plugin created the bin file to upload to the ESP8266. Copy that file b
 IDE and that is the file used for OTA or LOCAL update of certificates. There are different ways to
 do it, but that is the one that worked for me, can't recommend or support other methods. :stuck_out_tongue_closed_eyes:
 
+# ESP01S vs ESP01
+
+This project was designed and tested on ESP-01S (ESP01S) modules. I've received a few reports that
+ESP-01 modules have issues with this firmware and it is not something I plan working on. But, on the
+other hand, Denjhang that produces different FPGA MSX computers has found out a way to get those
+modules working fine, which he calls "ESP-01S" conversion. While I haven't tested it myself and don't
+plan doing it, I'm thankful to Denjhang by letting me know about this possibility and also allowing
+me to share his findings. According to Denjhang you need three 10K ohm resistors, connecting one between
+EN and RST, other between RST and 3V3 and finally one between 3V3 and IO0, resulting in something like
+this:
+
+![Adapting ESP-01](esp01adapted.jpg)
+
+Again, this is and always will be targetting ESP-01S and I can't guarantee it will work even if you
+apply changes recommended by Denjhang, but it is worth trying if you have several modules and it
+might be easier to re-work those modules than returning them and ordering a different batch.
+
 # Project Design Constraints
 
 This firmware was designed taking into consideration that the other end connected to it either has
