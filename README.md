@@ -45,6 +45,9 @@ where the plugin created the bin file to upload to the ESP8266. Copy that file b
 IDE and that is the file used for OTA or LOCAL update of certificates. There are different ways to
 do it, but that is the one that worked for me, can't recommend or support other methods. :stuck_out_tongue_closed_eyes:
 
+# RECOMMENDED ARDUINO IDE SETTING FOR ESP-01
+![My Arduino IDE Settings for ESP-01](ArduinoIDESettings.png)
+
 # ESP01S vs ESP01
 
 This project was designed and tested on ESP-01S (ESP01S) modules. I've received a few reports that
