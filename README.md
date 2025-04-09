@@ -48,6 +48,25 @@ do it, but that is the one that worked for me, can't recommend or support other 
 # RECOMMENDED ARDUINO IDE SETTING FOR ESP-01
 ![My Arduino IDE Settings for ESP-01](ArduinoIDESettings.png)
 
+# RECOMMENDED ARDUINO IDE SETTING FOR ESP-12
+![My Arduino IDE Settings for ESP-12](ArduinoIDEESP12Settings.png)
+
+# FLASH OFFSETS
+For any module, when using espressif tool to update flash (and thus making producting faster), the
+main firmware is always at offset 0, no matter if ESP-01 or ESP-12.
+
+Now, for the certificates file system, offsets are different and as follow:
+
+ESP-01: 0x000BB000
+ESP-12: 0x00200000
+
+# CAN I USE FILES GENERATED FOR ESP-01 in ESP-12?
+Did not test using Espressif tool to flash.
+Did test using local tools to update over serial port using the firmware commands for serial port update.
+In those quick tests, it seems that it worked, somehow... Probably not in the best sense and my guess is
+that it will not take advantage of the extra flash on ESP-12. Do not recommend doing it. Should not break
+anything, but probably it is going to make it behave like ESP-01 unless you flash ESP-12 firmware back.
+
 # ESP01S vs ESP01
 
 This project was designed and tested on ESP-01S (ESP01S) modules. I've received a few reports that
