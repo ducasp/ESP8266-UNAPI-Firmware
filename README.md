@@ -2,6 +2,15 @@
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/R6R2BRGX6)
 
+# DEPRECATED
+
+As of today I no longer recommend using ESP8266... Boards have been plagued with low quality devices, ESP-01 modules
+only have 1MB flash that is already struggling to fit the certificates list. You can find a ESP32 repository in my
+GitHub, that has work from me and Leo Manes. For most scenarios I would recommend a ESP32 C6, even though other
+devices in ESP32 family shall work fine as long as you compile it. This code most likely won't be supported anymore,
+perhaps only fixes.
+
+# Description
 
 Two sample TCP IP UNAPI drivers that work along with this firmware
 are available at:
