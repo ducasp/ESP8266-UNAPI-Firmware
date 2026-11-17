@@ -47,7 +47,7 @@ https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266WiFi/examples/Be
 To get the certificates in a single certs.ar file. That file goes to the /data folder of your 
 Arduino IDE project, and you can generate the file system using the following plugin:
 
-https://github.com/esp8266/arduino-esp8266fs-plugin
+https://github.com/earlephilhower/arduino-littlefs-upload
 
 Just enable logging on your Arduino IDE, and after uploading the filesystem, you can get in the log
 where the plugin created the bin file to upload to the ESP8266. Copy that file before closing the
@@ -99,7 +99,7 @@ This firmware was designed taking into consideration that the other end connecte
 a large 2KB reception buffer OR is fast enough to pick-up data at the desired baud rate without the
 help of such large buffer.
 
-Copyright (c) 2019 - 2025 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
+Copyright (c) 2019 - 2026 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
 All rights reserved.
 
 If you integrate this on your hardware, please consider the possibility of sending one piece of it

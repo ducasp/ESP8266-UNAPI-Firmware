@@ -1,11 +1,11 @@
 /*
 UNAPI8266.h
     ESP8266 UNAPI Implementation.
-    Revision 1.50
+    Revision 1.60
 
 Requires Arduino IDE and ESP8266 libraries
 
-Copyright (c) 2019 - 2025 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
+Copyright (c) 2019 - 2026 Oduvaldo Pavan Junior ( ducasp@ gmail.com )
 All rights reserved.
 
 HTTP functionality
@@ -47,6 +47,13 @@ struct ESPConfig {
   unsigned int uiRadioOffTimer;
   unsigned char ucAutoClock;
   int iGMT;
+  unsigned char ucIPAutomatic;
+  unsigned char ucDNSAutomatic;
+  unsigned char ucManualLocalIP[4];
+  unsigned char ucManualGateway[4];
+  unsigned char ucManualMask[4];
+  unsigned char ucManualDNS1[4];
+  unsigned char ucManualDNS2[4];
 };
 
 enum CommandTypes {
@@ -99,6 +106,12 @@ enum CustomFunctions {
   CUSTOM_F_RELEASECONNECTION = 'h',
   CUSTOM_F_GETAPSTS = 'g',
   CUSTOM_F_QUERY = '?'
+};
+
+// Vendor private commands, not part of the TCP-IP UNAPI specification
+// (0x7F to 0xFF is reserved for these and SSH UNAPI commands)
+enum CustomVendorFunctions {
+  CUSTOM_F_UDP_STATEX = 210 //Non destructive UDP datagram peek
 };
 
 enum TcpipUnapiFunctions {  
